@@ -116,8 +116,9 @@ struct position {
 	uint16_t ligne;
 	uint16_t colonne;
 };
-struct position *pions_blancs[20];
-struct position *pions_noirs[20];
+
+struct position pions_blancs[12];
+struct position pions_noirs[12];
 
 /* USER CODE END 0 */
 
@@ -1481,18 +1482,18 @@ void fonction_init(void const * argument)
   /* USER CODE BEGIN 5 */
     TickType_t xLastWakeTime;
     const TickType_t xFrequency = 20;
-    uint8_t i, j, cpt_lignes = 0, cpt_colonnes = 0;
+    uint8_t i, j, cpt_lignes = 0, cpt_colonnes = 1;
   /* Infinite loop */
   for(;;)
   {
-	  for (i = 0; i < 4; i++)
+	  for (i = 0; i < 3; i++)
 	  {
-		  for (j = 0; j < 5; j++)
+		  for (j = 0; j < 4; j++)
 		  {
-			  pions_blancs[i + j]->colonne = cpt_colonnes;
-			  pions_blancs[i + j]->ligne = cpt_lignes;
-			  pions_noirs[i + j]->colonne = cpt_colonnes;
-			  pions_noirs[i + j]->ligne = cpt_lignes + 6;
+			  pions_blancs[i * 4 + j].colonne = cpt_colonnes;
+			  pions_blancs[i * 4 + j].ligne = cpt_lignes;
+			  pions_noirs[i * 4 + j].colonne = (cpt_colonnes % 2 == 0) ? cpt_colonnes + 1 : cpt_colonnes - 1;
+			  pions_noirs[i * 4 + j].ligne = cpt_lignes + 5;
 			  cpt_colonnes += 2;
 		  }
 		  cpt_colonnes = (cpt_colonnes % 2 == 0) ? 1 : 0;
@@ -1518,23 +1519,36 @@ void fonction_affichage(void const * argument)
 	const TickType_t xFrequency = 20;
 	const uint8_t pas 			= 30;
 	const uint8_t rayon 		= 6;
-	uint16_t pointeurX 			= 12 + pas / 2;
-	uint16_t pointeurY 			= 12 + pas / 2;
+	const uint8_t marge			= 15;
+	uint16_t pointeurX 			= marge + pas / 2;
+	uint16_t pointeurY 			= marge + pas / 2;
 	vTaskDelete(task_initHandle);
 
   /* Infinite loop */
   for(;;)
   {
-	for(int i = 0; i < 20; i++)
+	vTaskSuspend(task_initHandle);
+	for(int i = 0; i < 12; i++)
 	{
 		xSemaphoreTake(mutexEcran, portMAX_DELAY);
-		pointeurX += pions_blancs[i]->colonne * pas;
-		pointeurY += pions_blancs[i]->ligne * pas;
+		BSP_LCD_SetTextColor(LCD_COLOR_WHITE);
+		pointeurX = marge + pas / 2 + pions_blancs[i].colonne * pas;
+		pointeurY = marge + pas / 2 + pions_blancs[i].ligne * pas;
 		BSP_LCD_FillCircle(pointeurX, pointeurY, rayon);
 
 		xSemaphoreGive(mutexEcran);
 	}
-    vTaskDelayUntil(xLastWakeTime, xFrequency);
+	for(int i = 0; i < 12; i++)
+	{
+		xSemaphoreTake(mutexEcran, portMAX_DELAY);
+		BSP_LCD_SetTextColor(LCD_COLOR_BLUE);
+		pointeurX = marge + pas / 2 + pions_noirs[i].colonne * pas;
+		pointeurY = marge + pas / 2 + pions_noirs[i].ligne * pas;
+		BSP_LCD_FillCircle(pointeurX, pointeurY, rayon);
+
+		xSemaphoreGive(mutexEcran);
+	}
+    vTaskDelayUntil(xLastWakeTime, (TickType_t) xFrequency);
   }
   /* USER CODE END fonction_affichage */
 }

@@ -76,6 +76,7 @@ SDRAM_HandleTypeDef hsdram1;
 
 osThreadId task_initHandle;
 osThreadId affichageHandle;
+osThreadId task_selectHandle;
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -103,6 +104,7 @@ static void MX_DAC_Init(void);
 static void MX_UART7_Init(void);
 void fonction_init(void const * argument);
 void fonction_affichage(void const * argument);
+void fonction_select(void const * argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -112,13 +114,14 @@ void fonction_affichage(void const * argument);
 /* USER CODE BEGIN 0 */
 SemaphoreHandle_t mutexEcran;
 
-struct position {
+struct pion {
 	uint16_t ligne;
 	uint16_t colonne;
+	uint16_t rayon;
 };
 
-struct position pions_blancs[12];
-struct position pions_noirs[12];
+struct pion pions_blancs[12];
+struct pion pions_noirs[12];
 
 /* USER CODE END 0 */
 
@@ -129,7 +132,7 @@ struct position pions_noirs[12];
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-	//static TS_StateTypeDef  TS_State;
+	static TS_StateTypeDef  TS_State;
 	//uint32_t potl,potr,joystick_h, joystick_v;
 	ADC_ChannelConfTypeDef sConfig = {0};
 	sConfig.Rank = ADC_REGULAR_RANK_1;
@@ -224,6 +227,10 @@ int main(void)
   /* definition and creation of affichage */
   osThreadDef(affichage, fonction_affichage, osPriorityNormal, 0, 1024);
   affichageHandle = osThreadCreate(osThread(affichage), NULL);
+
+  /* definition and creation of task_select */
+  osThreadDef(task_select, fonction_select, osPriorityIdle, 0, 256);
+  task_selectHandle = osThreadCreate(osThread(task_select), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -1490,10 +1497,14 @@ void fonction_init(void const * argument)
 	  {
 		  for (j = 0; j < 4; j++)
 		  {
+			  taskENTER_CRITICAL();
 			  pions_blancs[i * 4 + j].colonne = cpt_colonnes;
 			  pions_blancs[i * 4 + j].ligne = cpt_lignes;
 			  pions_noirs[i * 4 + j].colonne = (cpt_colonnes % 2 == 0) ? cpt_colonnes + 1 : cpt_colonnes - 1;
 			  pions_noirs[i * 4 + j].ligne = cpt_lignes + 5;
+			  pions_blancs[i * 4 + j].rayon = 9;
+			  pions_noirs[i * 4 + j].rayon = 9;
+			  taskEXIT_CRITICAL();
 			  cpt_colonnes += 2;
 		  }
 		  cpt_colonnes = (cpt_colonnes % 2 == 0) ? 1 : 0;
@@ -1518,7 +1529,6 @@ void fonction_affichage(void const * argument)
 	TickType_t xLastWakeTime;
 	const TickType_t xFrequency = 20;
 	const uint8_t pas 			= 30;
-	const uint8_t rayon 		= 6;
 	const uint8_t marge			= 15;
 	uint16_t pointeurX 			= marge + pas / 2;
 	uint16_t pointeurY 			= marge + pas / 2;
@@ -1527,14 +1537,18 @@ void fonction_affichage(void const * argument)
   /* Infinite loop */
   for(;;)
   {
-	vTaskSuspend(task_initHandle);
 	for(int i = 0; i < 12; i++)
 	{
 		xSemaphoreTake(mutexEcran, portMAX_DELAY);
+
 		BSP_LCD_SetTextColor(LCD_COLOR_WHITE);
+
+		taskENTER_CRITICAL();
 		pointeurX = marge + pas / 2 + pions_blancs[i].colonne * pas;
 		pointeurY = marge + pas / 2 + pions_blancs[i].ligne * pas;
-		BSP_LCD_FillCircle(pointeurX, pointeurY, rayon);
+		taskEXIT_CRITICAL();
+
+		BSP_LCD_FillCircle(pointeurX, pointeurY, pions_blancs[i].rayon);
 
 		xSemaphoreGive(mutexEcran);
 	}
@@ -1542,15 +1556,36 @@ void fonction_affichage(void const * argument)
 	{
 		xSemaphoreTake(mutexEcran, portMAX_DELAY);
 		BSP_LCD_SetTextColor(LCD_COLOR_BLUE);
+		taskENTER_CRITICAL();
 		pointeurX = marge + pas / 2 + pions_noirs[i].colonne * pas;
 		pointeurY = marge + pas / 2 + pions_noirs[i].ligne * pas;
-		BSP_LCD_FillCircle(pointeurX, pointeurY, rayon);
-
+		taskEXIT_CRITICAL();
+		BSP_LCD_FillCircle(pointeurX, pointeurY, pions_noirs[i].rayon);
 		xSemaphoreGive(mutexEcran);
 	}
     vTaskDelayUntil(xLastWakeTime, (TickType_t) xFrequency);
   }
   /* USER CODE END fonction_affichage */
+}
+
+/* USER CODE BEGIN Header_fonction_select */
+/**
+* @brief Function implementing the task_select thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_fonction_select */
+void fonction_select(void const * argument)
+{
+  /* USER CODE BEGIN fonction_select */
+  /* Infinite loop */
+  for(;;)
+  {
+	  BSP_TS_GetState(&TS_State);
+	  if(TS_State.touchDetected){
+    osDelay(1);
+  }
+  /* USER CODE END fonction_select */
 }
 
 /**

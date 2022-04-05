@@ -4,7 +4,8 @@
   * @file           : main.c
   * @brief          : Main program body
   ******************************************************************************
-  * @attention
+  * @attention POUR LE 2 JUIN
+  * Presentation le 26 avril
   *
   * Copyright (c) 2022 STMicroelectronics.
   * All rights reserved.
@@ -77,6 +78,7 @@ SDRAM_HandleTypeDef hsdram1;
 osThreadId task_initHandle;
 osThreadId affichageHandle;
 osThreadId task_selectHandle;
+osMessageQId myQueueTSHandle;
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -120,8 +122,19 @@ struct pion {
 	uint16_t rayon;
 };
 
+
+struct cell {
+	uint16_t ligne;
+	uint16_t colonne;
+	uint8_t isFilled;
+	uint8_t piece_color;
+	uint8_t rayon;
+};
+
 struct pion pions_blancs[12];
 struct pion pions_noirs[12];
+struct cell chessboard[8][8];
+uint8_t flag = 0;
 
 /* USER CODE END 0 */
 
@@ -192,7 +205,7 @@ int main(void)
     BSP_LCD_SetBackColor(LCD_COLOR_BLUE);
 
     BSP_TS_Init(BSP_LCD_GetXSize(), BSP_LCD_GetYSize());
-
+    BSP_TS_ITConfig();
 
 	// Init potentiometre
 	  sConfig.Channel = ADC_CHANNEL_6;
@@ -214,6 +227,11 @@ int main(void)
   /* USER CODE BEGIN RTOS_TIMERS */
   /* start timers, add new ones, ... */
   /* USER CODE END RTOS_TIMERS */
+
+  /* Create the queue(s) */
+  /* definition and creation of myQueueTS */
+  osMessageQDef(myQueueTS, 3, uint16_t);
+  myQueueTSHandle = osMessageCreate(osMessageQ(myQueueTS), NULL);
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
@@ -1240,9 +1258,9 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Alternate = GPIO_AF12_SDMMC1;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : BP2_Pin BP1_Pin */
-  GPIO_InitStruct.Pin = BP2_Pin|BP1_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
+  /*Configure GPIO pins : PA15 PA8 PA6 */
+  GPIO_InitStruct.Pin = GPIO_PIN_15|GPIO_PIN_8|GPIO_PIN_6;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
@@ -1361,7 +1379,7 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin : LCD_INT_Pin */
   GPIO_InitStruct.Pin = LCD_INT_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_EVT_RISING;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(LCD_INT_GPIO_Port, &GPIO_InitStruct);
 
@@ -1420,12 +1438,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Alternate = GPIO_AF11_ETH;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : PA6 */
-  GPIO_InitStruct.Pin = GPIO_PIN_6;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
   /*Configure GPIO pins : ULPI_CLK_Pin ULPI_D0_Pin */
   GPIO_InitStruct.Pin = ULPI_CLK_Pin|ULPI_D0_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
@@ -1435,9 +1447,6 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI9_5_IRQn, 5, 0);
-  HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
-
   HAL_NVIC_SetPriority(EXTI15_10_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 
@@ -1466,12 +1475,15 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
-	//uint16_t Message[2];
-	//Message[0] = GPIO_Pin;
-	//BP2 32758, BP1 256
-	//HAL_GPIO_TogglePin(LED11_GPIO_Port, LED11_Pin);
-	//xQueueSendFromISR(myQueueBPHandle, &Message, 0);
-
+	uint16_t Message[2];
+	Message[0] = GPIO_Pin;
+	//BP2 32758, BP1 256, TS 65248
+	if(flag == 0)
+	{
+		HAL_GPIO_TogglePin(LED11_GPIO_Port, LED11_Pin);
+		//xQueueSendFromISR(myQueueTSHandle, &Message, 0);
+		flag = 1;
+	}
 }
 
 
@@ -1489,26 +1501,42 @@ void fonction_init(void const * argument)
   /* USER CODE BEGIN 5 */
     TickType_t xLastWakeTime;
     const TickType_t xFrequency = 20;
-    uint8_t i, j, cpt_lignes = 0, cpt_colonnes = 1;
+    uint8_t i, j, cpt_lignesw = 0, cpt_colonnesw = 1, cpt_lignesb, cpt_colonnesb;
   /* Infinite loop */
   for(;;)
   {
+
+
 	  for (i = 0; i < 3; i++)
 	  {
 		  for (j = 0; j < 4; j++)
 		  {
 			  taskENTER_CRITICAL();
-			  pions_blancs[i * 4 + j].colonne = cpt_colonnes;
-			  pions_blancs[i * 4 + j].ligne = cpt_lignes;
-			  pions_noirs[i * 4 + j].colonne = (cpt_colonnes % 2 == 0) ? cpt_colonnes + 1 : cpt_colonnes - 1;
-			  pions_noirs[i * 4 + j].ligne = cpt_lignes + 5;
+			  /**
+			  pions_blancs[i * 4 + j].colonne = cpt_colonnesw;
+			  pions_blancs[i * 4 + j].ligne = cpt_lignesw;
+			  pions_noirs[i * 4 + j].colonne = (cpt_colonnesw % 2 == 0) ? cpt_colonnesw + 1 : cpt_colonnesw - 1;
+			  pions_noirs[i * 4 + j].ligne = cpt_lignesw + 5;
 			  pions_blancs[i * 4 + j].rayon = 9;
 			  pions_noirs[i * 4 + j].rayon = 9;
+			  **/
+			  chessboard[cpt_lignesw][cpt_colonnesw].ligne = cpt_lignesw;
+			  chessboard[cpt_lignesw][cpt_colonnesw].colonne = cpt_colonnesw;
+			  chessboard[cpt_lignesw][cpt_colonnesw].isFilled = 1;
+			  chessboard[cpt_lignesw][cpt_colonnesw].rayon = 9;
+			  chessboard[cpt_lignesw][cpt_colonnesw].piece_color = 0;
+			  cpt_lignesb = cpt_lignesw + 5;
+			  cpt_colonnesb = (cpt_colonnesw % 2 == 0) ? cpt_colonnesw + 1 : cpt_colonnesw - 1;
+			  chessboard[cpt_lignesb][cpt_colonnesb].ligne = cpt_lignesb;
+			  chessboard[cpt_lignesb][cpt_colonnesb].colonne = cpt_colonnesb;
+			  chessboard[cpt_lignesb][cpt_colonnesb].isFilled = 1;
+			  chessboard[cpt_lignesb][cpt_colonnesb].rayon = 9;
+			  chessboard[cpt_lignesb][cpt_colonnesb].piece_color = 1;
 			  taskEXIT_CRITICAL();
-			  cpt_colonnes += 2;
+			  cpt_colonnesw += 2;
 		  }
-		  cpt_colonnes = (cpt_colonnes % 2 == 0) ? 1 : 0;
-		  cpt_lignes++;
+		  cpt_colonnesw = (cpt_colonnesw % 2 == 0) ? 1 : 0;
+		  cpt_lignesw++;
 	  }
 
       vTaskDelayUntil(&xLastWakeTime, xFrequency);
@@ -1527,17 +1555,40 @@ void fonction_affichage(void const * argument)
 {
   /* USER CODE BEGIN fonction_affichage */
 	TickType_t xLastWakeTime;
-	const TickType_t xFrequency = 20;
+	const TickType_t xFrequency = 50;
 	const uint8_t pas 			= 30;
 	const uint8_t marge			= 15;
 	uint16_t pointeurX 			= marge + pas / 2;
 	uint16_t pointeurY 			= marge + pas / 2;
+	uint8_t color				= 2;
+	uint8_t i, j;
 	vTaskDelete(task_initHandle);
-
   /* Infinite loop */
   for(;;)
   {
-	for(int i = 0; i < 12; i++)
+	  HAL_GPIO_TogglePin(LED12_GPIO_Port, LED12_Pin);
+	  for (i = 0; i < 8; i++)
+	  {
+		  for (j = 0; j < 8; j++)
+		  {
+			  taskENTER_CRITICAL();
+			  if (chessboard[i][j].isFilled != 0)
+			  {
+				  color = chessboard[i][j].piece_color;
+				  taskEXIT_CRITICAL();
+				  xSemaphoreTake(mutexEcran, portMAX_DELAY);
+				  if (color == 1) BSP_LCD_SetTextColor(LCD_COLOR_BLUE);
+				  else if (color == 0) BSP_LCD_SetTextColor(LCD_COLOR_WHITE);
+			      pointeurX = marge + pas / 2 + j * pas;
+			      pointeurY = marge + pas / 2 + i * pas;
+				  BSP_LCD_FillCircle(pointeurX, pointeurY, chessboard[i][j].rayon);
+				  xSemaphoreGive(mutexEcran);
+			  }
+
+		  }
+	  }
+	  /**
+	  for(int i = 0; i < 12; i++)
 	{
 		xSemaphoreTake(mutexEcran, portMAX_DELAY);
 
@@ -1563,7 +1614,8 @@ void fonction_affichage(void const * argument)
 		BSP_LCD_FillCircle(pointeurX, pointeurY, pions_noirs[i].rayon);
 		xSemaphoreGive(mutexEcran);
 	}
-    vTaskDelayUntil(xLastWakeTime, (TickType_t) xFrequency);
+	**/
+    vTaskDelayUntil(&xLastWakeTime, (TickType_t) xFrequency);
   }
   /* USER CODE END fonction_affichage */
 }
@@ -1578,11 +1630,28 @@ void fonction_affichage(void const * argument)
 void fonction_select(void const * argument)
 {
   /* USER CODE BEGIN fonction_select */
+	uint16_t MessageTS[1];
+	static TS_StateTypeDef TS_State;
   /* Infinite loop */
   for(;;)
   {
-	  BSP_TS_GetState(&TS_State);
-	  if(TS_State.touchDetected){
+	  //xQueueReceiveFromISR(myQueueTSHandle, &MessageTS, portMAX_DELAY);
+	  if(MessageTS[0] == LCD_INT_Pin)
+	  {
+
+	  }
+	  if(MessageTS[0] != 0)
+	  {
+		  BSP_TS_GetState(&TS_State);
+		  taskENTER_CRITICAL();
+		  pions_blancs[0].rayon = 13;
+		  flag = 0;
+		  taskEXIT_CRITICAL();
+		  //TS_State.touchX[0]
+		  //TS_State.touchY[0]
+	  }
+	  //BSP_TS_GetState(&TS_State);
+	  //if(TS_State.touchDetected){
     osDelay(1);
   }
   /* USER CODE END fonction_select */

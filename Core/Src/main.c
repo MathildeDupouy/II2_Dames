@@ -135,7 +135,8 @@ struct cell {
 };
 
 struct cell chessboard[8][8];
-uint8_t flag = 1;
+uint8_t change = 1;
+//uint8_t flag = 1;
 
 /* USER CODE END 0 */
 
@@ -1488,7 +1489,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 	}
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
-{
+{	/**
 	uint16_t MessageTS[1], MessageTempo = {1};
 	MessageTS[0] = GPIO_Pin;
 	//BP2 32758, BP1 256, TS 65248
@@ -1499,6 +1500,8 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
  		flag = 1;
 	}
 	//xQueueSendFromISR(myQueueTempoHandle, &MessageTempo, 0);
+	 *
+	 */
 }
 
 
@@ -1577,6 +1580,13 @@ void fonction_affichage(void const * argument)
   for(;;)
   {
 	  HAL_GPIO_TogglePin(LED12_GPIO_Port, LED12_Pin);
+	  taskENTER_CRITICAL();
+	  if(change == 1)
+	  {
+		  BSP_LCD_Clear(0);
+		  change = 0;
+	  }
+	  taskEXIT_CRITICAL();
 	  for (i = 0; i < 8; i++)
 	  {
 		  for (j = 0; j < 8; j++)
@@ -1614,20 +1624,24 @@ void fonction_affichage(void const * argument)
 void fonction_select(void const * argument)
 {
   /* USER CODE BEGIN fonction_select */
-	uint16_t MessageTS[1];
+	//uint16_t MessageTS[1];
+	TickType_t xLastWakeTime;
+	const TickType_t xFrequency = 100;
 	static TS_StateTypeDef TS_State;
-	flag = 0;
+	//flag = 0;
 	uint8_t posx = 0, posy = 0;
 	uint8_t line = 0, col = 0;
 	const uint8_t pas 			= 30;
 	const uint8_t marge			= 15;
+	uint8_t selected 			= 0;
   /* Infinite loop */
   for(;;)
   {
-	  xQueueReceiveFromISR(myQueueTSHandle, &MessageTS, portMAX_DELAY);
-	  if(MessageTS[0] == LCD_INT_Pin)
+	  //xQueueReceiveFromISR(myQueueTSHandle, &MessageTS, portMAX_DELAY);
+	  //if(MessageTS[0] == LCD_INT_Pin)
+	  BSP_TS_GetState(&TS_State);
+	  if(TS_State.touchDetected)
 	  {
-		  BSP_TS_GetState(&TS_State);
 		 // taskENTER_CRITICAL();
 		 // flag = 0;
 		 // taskEXIT_CRITICAL();
@@ -1640,21 +1654,23 @@ void fonction_select(void const * argument)
 		  taskENTER_CRITICAL();
 		  if(chessboard[line][col].isFilled)
 		  {
-			  if(chessboard[line][col].rayon < 12)
+			  if(chessboard[line][col].rayon < 12 && selected == 0)
 			  {
 				  chessboard[line][col].rayon = 12;
+				  selected = 1;
 			  }
 			  else if (chessboard[line][col].rayon == 12)
 			  {
 				  chessboard[line][col].rayon = 9;
+				  change = 1;
+				  selected = 0;
 			  }
 		  }
 		  taskEXIT_CRITICAL();
 
-
 	  }
-	  //if(TS_State.touchDetected){
-    osDelay(1);
+
+    vTaskDelayUntil(&xLastWakeTime, (TickType_t) xFrequency);
   }
   /* USER CODE END fonction_select */
 }
@@ -1669,7 +1685,7 @@ void fonction_select(void const * argument)
 void fonction_temporisation(void const * argument)
 {
   /* USER CODE BEGIN fonction_temporisation */
-	uint16_t Message[1];
+	//uint16_t Message[1];
   /* Infinite loop */
   for(;;)
   {

@@ -148,48 +148,58 @@ uint8_t calculPossibilitesRec(uint16_t line, uint16_t col, uint8_t color, struct
  */
 uint8_t calculPossibilitesRec(uint16_t line, uint16_t col, uint8_t color, struct cell *possibilites, uint8_t index, uint8_t mangeant)
 {
+	int8_t pas = (color == 0) ? 1 : -1; // en fonction couleur on regarde lignes croissantes ou decroissantes
+	int8_t fin = (color == 0) ? 7 : 0; // en fonction couleur pas meme arrivee
 	// Controle de la colonne de droite :
-	if(col < 7 && line != 7)
+	if(col < 7 && line != fin)
 	{
 		// Controle colonne de droite : piece presente
-		if(chessboard[line + 1][col + 1].isFilled == 1)
+		if(chessboard[line + pas][col + 1].isFilled == 1)
 		{
-			if(chessboard[line + 1][col + 1].piece_color == color) ;//Une piece de sa couleur bloque
-			else if((col <= 5) && (line <= 5))
-			{//Piece de l'autre couleur, place pour manger
-				struct cell possible = {line + 2, col + 2};
-				possibilites[index] = possible;
-				index++;
-				index = calculPossibilitesRec(line + 2, col + 2, color, possibilites, index, 1);
+			if(chessboard[line + pas][col + 1].piece_color == color) ;//Une piece de sa couleur bloque
+			else if((col <= 5) && (line + pas != fin))
+			{
+				if(chessboard[line + 2 * pas][col + 2].isFilled == 0)
+				{
+					//Piece de l'autre couleur, place pour manger
+					struct cell possible = {line + 2 * pas, col + 2};
+					possibilites[index] = possible;
+					index++;
+					index = calculPossibilitesRec(line + 2 * pas, col + 2, color, possibilites, index, 1);
+				}
 			}
 		}
 		// Controle colonne de droite : pas de piece et pas en train de manger
 		else if (mangeant == 0)
 		{
-			struct cell possible = {line + 1, col + 1};
+			struct cell possible = {line + pas, col + 1};
 			possibilites[index] = possible;
 			index++;
 		}
 	}
 	// Controle de la colonne de gauche :
-	if(col > 0 && line != 7)
+	if(col > 0 && line != fin)
 	{
 		// Controle colonne de gauche : piece presente
-		if(chessboard[line + 1][col - 1].isFilled == 1)
+		if(chessboard[line + pas][col - 1].isFilled == 1)
 		{
-			if(chessboard[line + 1][col + 1].piece_color == color) ;//Une piece de sa couleur bloque
-			else if((col >= 2) && (line <= 5))
-			{//Piece de l'autre couleur, place pour manger
-				struct cell possible = {line + 2, col - 2};
-				possibilites[index] = possible;
-				index++;
-				index = calculPossibilitesRec(line + 2, col - 2, color, possibilites, index, 1);
+			if(chessboard[line + pas][col - 1].piece_color == color) ;//Une piece de sa couleur bloque
+			else if((col >= 2) && (line + pas != fin))
+			{
+				if(chessboard[line + 2 * pas][col - 2].isFilled == 0)
+				{
+					//Piece de l'autre couleur, place pour manger
+					struct cell possible = {line + 2 * pas, col - 2};
+					possibilites[index] = possible;
+					index++;
+					index = calculPossibilitesRec(line + 2 * pas, col - 2, color, possibilites, index, 1);
+				}
 			}
 		}
 		// Controle colonne de gauche : pas de piece et pas en train de manger
 		else if (mangeant == 0)
 		{
-			struct cell possible = {line + 1, col - 1};
+			struct cell possible = {line + pas, col - 1};
 			possibilites[index] = possible;
 			index++;
 		}
@@ -1643,7 +1653,6 @@ void fonction_affichage(void const * argument)
 	  if(change == 1)
 	  {
 		  BSP_LCD_Clear(0);
-		  change = 0;
 	  }
 	  taskEXIT_CRITICAL();
 
@@ -1670,15 +1679,29 @@ void fonction_affichage(void const * argument)
 			  //Case possible
 			  else if (possible != 0)
 			  {
-				  xSemaphoreTake(mutexEcran, portMAX_DELAY);
-				  BSP_LCD_SetTextColor(LCD_COLOR_RED);
-			      pointeurX = marge + pas / 2 + j * pas;
-			      pointeurY = marge + pas / 2 + i * pas;
-				  BSP_LCD_FillCircle(pointeurX, pointeurY, 9);
-				  xSemaphoreGive(mutexEcran);
+				  if (change == 1) // Il y a eu une deselection, reinitialisation des possibles et pas d'affichage
+				  {
+					  taskENTER_CRITICAL();
+					  chessboard[i][j].isPossible = 0;
+					  taskEXIT_CRITICAL();
+				  }
+				  else
+				  {
+					  xSemaphoreTake(mutexEcran, portMAX_DELAY);
+					  BSP_LCD_SetTextColor(LCD_COLOR_RED);
+				      pointeurX = marge + pas / 2 + j * pas;
+				      pointeurY = marge + pas / 2 + i * pas;
+					  BSP_LCD_FillCircle(pointeurX, pointeurY, 9);
+					  xSemaphoreGive(mutexEcran);
+				  }
+
 			  }
 		  }
 	  }
+	taskENTER_CRITICAL();
+	change = 0; // S'il y avait des changements, ils on ete pris en compte
+	taskEXIT_CRITICAL();
+
     vTaskDelayUntil(&xLastWakeTime, (TickType_t) xFrequency);
   }
   /* USER CODE END fonction_affichage */
@@ -1704,40 +1727,55 @@ void fonction_select(void const * argument)
 	const uint8_t pas 			= 30;
 	const uint8_t marge			= 15;
 	uint8_t selected 			= 0;
+	uint8_t line_selected		= 8;
+	uint8_t col_selected		= 8;
 	uint16_t message[1];
   /* Infinite loop */
   for(;;)
   {
-	  //xQueueReceiveFromISR(myQueueTSHandle, &MessageTS, portMAX_DELAY);
-	  //if(MessageTS[0] == LCD_INT_Pin)
+
 	  BSP_TS_GetState(&TS_State);
 	  if(TS_State.touchDetected)
 	  {
-		 // taskENTER_CRITICAL();
-		 // flag = 0;
-		 // taskEXIT_CRITICAL();
-
 		  posx = TS_State.touchX[0];
 		  posy = TS_State.touchY[0];
 
 		  col = (posx - marge) / pas;
 		  line = (posy - marge) / pas;
 		  taskENTER_CRITICAL();
+		  // Selection d'un pion
 		  if(chessboard[line][col].isFilled)
 		  {
+			  // Aucun pion n'etait selectionne
 			  if(chessboard[line][col].rayon < 12 && selected == 0)
 			  {
 				  chessboard[line][col].rayon = 12;
 				  selected = 1;
+				  line_selected = line;
+				  col_selected = col;
 				  message[0] = (line << 8) + col;
 				  xQueueSend(queueSelHandle, &message, 0);
 			  }
+			  /// Ce pion etait selectionne
 			  else if (chessboard[line][col].rayon == 12)
 			  {
 				  chessboard[line][col].rayon = 9;
 				  change = 1;
 				  selected = 0;
 			  }
+		  }
+
+		  // Case pour un deplacement
+		  if(chessboard[line][col].isPossible)
+		  {
+			  chessboard[line_selected][col_selected].isFilled = 0;
+
+			  chessboard[line][col].isFilled = 1;
+			  chessboard[line][col].isPossible = 0;
+			  chessboard[line][col].piece_color = chessboard[line_selected][col_selected].piece_color;
+			  chessboard[line][col].rayon = 9;
+			  selected = 0;
+			  change = 1;
 		  }
 		  taskEXIT_CRITICAL();
 

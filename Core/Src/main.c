@@ -78,7 +78,9 @@ SDRAM_HandleTypeDef hsdram1;
 osThreadId task_initHandle;
 osThreadId affichageHandle;
 osThreadId task_selectHandle;
+osThreadId temporisationHandle;
 osMessageQId myQueueTSHandle;
+osMessageQId myQueueTempoHandle;
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -107,6 +109,7 @@ static void MX_UART7_Init(void);
 void fonction_init(void const * argument);
 void fonction_affichage(void const * argument);
 void fonction_select(void const * argument);
+void fonction_temporisation(void const * argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -131,10 +134,8 @@ struct cell {
 	uint8_t rayon;
 };
 
-struct pion pions_blancs[12];
-struct pion pions_noirs[12];
 struct cell chessboard[8][8];
-uint8_t flag = 0;
+uint8_t flag = 1;
 
 /* USER CODE END 0 */
 
@@ -145,13 +146,18 @@ uint8_t flag = 0;
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-	static TS_StateTypeDef  TS_State;
 	//uint32_t potl,potr,joystick_h, joystick_v;
 	ADC_ChannelConfTypeDef sConfig = {0};
 	sConfig.Rank = ADC_REGULAR_RANK_1;
 	sConfig.SamplingTime = ADC_SAMPLETIME_3CYCLES;
 
   /* USER CODE END 1 */
+
+  /* Enable I-Cache---------------------------------------------------------*/
+  SCB_EnableICache();
+
+  /* Enable D-Cache---------------------------------------------------------*/
+  SCB_EnableDCache();
 
   /* MCU Configuration--------------------------------------------------------*/
 
@@ -233,6 +239,10 @@ int main(void)
   osMessageQDef(myQueueTS, 3, uint16_t);
   myQueueTSHandle = osMessageCreate(osMessageQ(myQueueTS), NULL);
 
+  /* definition and creation of myQueueTempo */
+  osMessageQDef(myQueueTempo, 16, uint8_t);
+  myQueueTempoHandle = osMessageCreate(osMessageQ(myQueueTempo), NULL);
+
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
   /* USER CODE END RTOS_QUEUES */
@@ -249,6 +259,10 @@ int main(void)
   /* definition and creation of task_select */
   osThreadDef(task_select, fonction_select, osPriorityIdle, 0, 256);
   task_selectHandle = osThreadCreate(osThread(task_select), NULL);
+
+  /* definition and creation of temporisation */
+  osThreadDef(temporisation, fonction_temporisation, osPriorityHigh, 0, 128);
+  temporisationHandle = osThreadCreate(osThread(temporisation), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -1475,15 +1489,16 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
-	uint16_t Message[2];
-	Message[0] = GPIO_Pin;
+	uint16_t MessageTS[1], MessageTempo = {1};
+	MessageTS[0] = GPIO_Pin;
 	//BP2 32758, BP1 256, TS 65248
-	if(flag == 0)
+	if(flag == 0 && GPIO_Pin == LCD_INT_Pin)
 	{
 		HAL_GPIO_TogglePin(LED11_GPIO_Port, LED11_Pin);
-		//xQueueSendFromISR(myQueueTSHandle, &Message, 0);
-		flag = 1;
+ 		xQueueSendFromISR(myQueueTSHandle, &MessageTS, 0);
+ 		flag = 1;
 	}
+	//xQueueSendFromISR(myQueueTempoHandle, &MessageTempo, 0);
 }
 
 
@@ -1512,19 +1527,13 @@ void fonction_init(void const * argument)
 		  for (j = 0; j < 4; j++)
 		  {
 			  taskENTER_CRITICAL();
-			  /**
-			  pions_blancs[i * 4 + j].colonne = cpt_colonnesw;
-			  pions_blancs[i * 4 + j].ligne = cpt_lignesw;
-			  pions_noirs[i * 4 + j].colonne = (cpt_colonnesw % 2 == 0) ? cpt_colonnesw + 1 : cpt_colonnesw - 1;
-			  pions_noirs[i * 4 + j].ligne = cpt_lignesw + 5;
-			  pions_blancs[i * 4 + j].rayon = 9;
-			  pions_noirs[i * 4 + j].rayon = 9;
-			  **/
+			  	 // init white pieces
 			  chessboard[cpt_lignesw][cpt_colonnesw].ligne = cpt_lignesw;
 			  chessboard[cpt_lignesw][cpt_colonnesw].colonne = cpt_colonnesw;
 			  chessboard[cpt_lignesw][cpt_colonnesw].isFilled = 1;
 			  chessboard[cpt_lignesw][cpt_colonnesw].rayon = 9;
 			  chessboard[cpt_lignesw][cpt_colonnesw].piece_color = 0;
+			  // init black pieces
 			  cpt_lignesb = cpt_lignesw + 5;
 			  cpt_colonnesb = (cpt_colonnesw % 2 == 0) ? cpt_colonnesw + 1 : cpt_colonnesw - 1;
 			  chessboard[cpt_lignesb][cpt_colonnesb].ligne = cpt_lignesb;
@@ -1562,6 +1571,7 @@ void fonction_affichage(void const * argument)
 	uint16_t pointeurY 			= marge + pas / 2;
 	uint8_t color				= 2;
 	uint8_t i, j;
+	uint8_t filled = 0;
 	vTaskDelete(task_initHandle);
   /* Infinite loop */
   for(;;)
@@ -1572,10 +1582,11 @@ void fonction_affichage(void const * argument)
 		  for (j = 0; j < 8; j++)
 		  {
 			  taskENTER_CRITICAL();
-			  if (chessboard[i][j].isFilled != 0)
+			  filled = chessboard[i][j].isFilled;
+			  taskEXIT_CRITICAL();
+			  if ( filled != 0)
 			  {
 				  color = chessboard[i][j].piece_color;
-				  taskEXIT_CRITICAL();
 				  xSemaphoreTake(mutexEcran, portMAX_DELAY);
 				  if (color == 1) BSP_LCD_SetTextColor(LCD_COLOR_BLUE);
 				  else if (color == 0) BSP_LCD_SetTextColor(LCD_COLOR_WHITE);
@@ -1585,36 +1596,9 @@ void fonction_affichage(void const * argument)
 				  xSemaphoreGive(mutexEcran);
 			  }
 
+
 		  }
 	  }
-	  /**
-	  for(int i = 0; i < 12; i++)
-	{
-		xSemaphoreTake(mutexEcran, portMAX_DELAY);
-
-		BSP_LCD_SetTextColor(LCD_COLOR_WHITE);
-
-		taskENTER_CRITICAL();
-		pointeurX = marge + pas / 2 + pions_blancs[i].colonne * pas;
-		pointeurY = marge + pas / 2 + pions_blancs[i].ligne * pas;
-		taskEXIT_CRITICAL();
-
-		BSP_LCD_FillCircle(pointeurX, pointeurY, pions_blancs[i].rayon);
-
-		xSemaphoreGive(mutexEcran);
-	}
-	for(int i = 0; i < 12; i++)
-	{
-		xSemaphoreTake(mutexEcran, portMAX_DELAY);
-		BSP_LCD_SetTextColor(LCD_COLOR_BLUE);
-		taskENTER_CRITICAL();
-		pointeurX = marge + pas / 2 + pions_noirs[i].colonne * pas;
-		pointeurY = marge + pas / 2 + pions_noirs[i].ligne * pas;
-		taskEXIT_CRITICAL();
-		BSP_LCD_FillCircle(pointeurX, pointeurY, pions_noirs[i].rayon);
-		xSemaphoreGive(mutexEcran);
-	}
-	**/
     vTaskDelayUntil(&xLastWakeTime, (TickType_t) xFrequency);
   }
   /* USER CODE END fonction_affichage */
@@ -1632,29 +1616,75 @@ void fonction_select(void const * argument)
   /* USER CODE BEGIN fonction_select */
 	uint16_t MessageTS[1];
 	static TS_StateTypeDef TS_State;
+	flag = 0;
+	uint8_t posx = 0, posy = 0;
+	uint8_t line = 0, col = 0;
+	const uint8_t pas 			= 30;
+	const uint8_t marge			= 15;
   /* Infinite loop */
   for(;;)
   {
-	  //xQueueReceiveFromISR(myQueueTSHandle, &MessageTS, portMAX_DELAY);
+	  xQueueReceiveFromISR(myQueueTSHandle, &MessageTS, portMAX_DELAY);
 	  if(MessageTS[0] == LCD_INT_Pin)
 	  {
+		  BSP_TS_GetState(&TS_State);
+		 // taskENTER_CRITICAL();
+		 // flag = 0;
+		 // taskEXIT_CRITICAL();
+
+		  posx = TS_State.touchX[0];
+		  posy = TS_State.touchY[0];
+
+		  col = (posx - marge) / pas;
+		  line = (posy - marge) / pas;
+		  taskENTER_CRITICAL();
+		  if(chessboard[line][col].isFilled)
+		  {
+			  if(chessboard[line][col].rayon < 12)
+			  {
+				  chessboard[line][col].rayon = 12;
+			  }
+			  else if (chessboard[line][col].rayon == 12)
+			  {
+				  chessboard[line][col].rayon = 9;
+			  }
+		  }
+		  taskEXIT_CRITICAL();
+
 
 	  }
-	  if(MessageTS[0] != 0)
-	  {
-		  BSP_TS_GetState(&TS_State);
-		  taskENTER_CRITICAL();
-		  pions_blancs[0].rayon = 13;
-		  flag = 0;
-		  taskEXIT_CRITICAL();
-		  //TS_State.touchX[0]
-		  //TS_State.touchY[0]
-	  }
-	  //BSP_TS_GetState(&TS_State);
 	  //if(TS_State.touchDetected){
     osDelay(1);
   }
   /* USER CODE END fonction_select */
+}
+
+/* USER CODE BEGIN Header_fonction_temporisation */
+/**
+* @brief Function implementing the temporisation thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_fonction_temporisation */
+void fonction_temporisation(void const * argument)
+{
+  /* USER CODE BEGIN fonction_temporisation */
+	uint16_t Message[1];
+  /* Infinite loop */
+  for(;;)
+  {
+	  /*
+	xQueueReceiveFromISR(myQueueTempoHandle, &Message, portMAX_DELAY);
+	flag = 1;
+	vTaskDelay(20);
+    taskENTER_CRITICAL();
+	flag = 0;
+	taskEXIT_CRITICAL();
+	*/
+	 vTaskDelay(20);
+
+  }
+  /* USER CODE END fonction_temporisation */
 }
 
 /**

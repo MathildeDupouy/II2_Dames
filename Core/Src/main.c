@@ -78,10 +78,28 @@ SDRAM_HandleTypeDef hsdram1;
 osThreadId task_initHandle;
 osThreadId affichageHandle;
 osThreadId task_selectHandle;
-osThreadId temporisationHandle;
-osMessageQId myQueueTSHandle;
-osMessageQId myQueueTempoHandle;
+osThreadId task_calculPossHandle;
+osMessageQId queueSelHandle;
 /* USER CODE BEGIN PV */
+SemaphoreHandle_t mutexEcran;
+
+struct cell {
+	uint16_t ligne;
+	uint16_t colonne;
+};
+
+
+struct chess_cell {
+	uint16_t ligne;
+	uint16_t colonne;
+	uint8_t isPossible;
+	uint8_t isFilled;
+	uint8_t piece_color;
+	uint8_t rayon;
+};
+
+struct chess_cell chessboard[8][8];
+uint8_t change = 1;
 
 /* USER CODE END PV */
 
@@ -109,34 +127,78 @@ static void MX_UART7_Init(void);
 void fonction_init(void const * argument);
 void fonction_affichage(void const * argument);
 void fonction_select(void const * argument);
-void fonction_temporisation(void const * argument);
+void fonction_calculPossibilites(void const * argument);
 
 /* USER CODE BEGIN PFP */
-
+uint8_t calculPossibilitesRec(uint16_t line, uint16_t col, uint8_t color, struct cell *possibilites, uint8_t index, uint8_t mangeant);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-SemaphoreHandle_t mutexEcran;
+/**
+ * Calcule récursivement les cases possibles a partir de la ligne, de la colonne et de la couleur.
+ * line			: ligne de depart
+ * col			: colonne de depart
+ * color		: couleur de la piece a deplacer
+ * possibilites	: tableau qui va contenir les possibilites (vide initialement)
+ * index		: indice de la prochaine case vide du tableau (a initialiser a 0)
+ * mangeant		: vaut 0 si piece posee la ou 1 si piece arrive en mangeant une piece (init a 0)
+ *
+ * retour		: indice de la prochaine case vide du tableau
+ */
+uint8_t calculPossibilitesRec(uint16_t line, uint16_t col, uint8_t color, struct cell *possibilites, uint8_t index, uint8_t mangeant)
+{
+	// Controle de la colonne de droite :
+	if(col < 7 && line != 7)
+	{
+		// Controle colonne de droite : piece presente
+		if(chessboard[line + 1][col + 1].isFilled == 1)
+		{
+			if(chessboard[line + 1][col + 1].piece_color == color) ;//Une piece de sa couleur bloque
+			else if((col <= 5) && (line <= 5))
+			{//Piece de l'autre couleur, place pour manger
+				struct cell possible = {line + 2, col + 2};
+				possibilites[index] = possible;
+				index++;
+				index = calculPossibilitesRec(line + 2, col + 2, color, possibilites, index, 1);
+			}
+		}
+		// Controle colonne de droite : pas de piece et pas en train de manger
+		else if (mangeant == 0)
+		{
+			struct cell possible = {line + 1, col + 1};
+			possibilites[index] = possible;
+			index++;
+		}
+	}
+	// Controle de la colonne de gauche :
+	if(col > 0 && line != 7)
+	{
+		// Controle colonne de gauche : piece presente
+		if(chessboard[line + 1][col - 1].isFilled == 1)
+		{
+			if(chessboard[line + 1][col + 1].piece_color == color) ;//Une piece de sa couleur bloque
+			else if((col >= 2) && (line <= 5))
+			{//Piece de l'autre couleur, place pour manger
+				struct cell possible = {line + 2, col - 2};
+				possibilites[index] = possible;
+				index++;
+				index = calculPossibilitesRec(line + 2, col - 2, color, possibilites, index, 1);
+			}
+		}
+		// Controle colonne de gauche : pas de piece et pas en train de manger
+		else if (mangeant == 0)
+		{
+			struct cell possible = {line + 1, col - 1};
+			possibilites[index] = possible;
+			index++;
+		}
+	}
 
-struct pion {
-	uint16_t ligne;
-	uint16_t colonne;
-	uint16_t rayon;
-};
+	return index;
 
+}
 
-struct cell {
-	uint16_t ligne;
-	uint16_t colonne;
-	uint8_t isFilled;
-	uint8_t piece_color;
-	uint8_t rayon;
-};
-
-struct cell chessboard[8][8];
-uint8_t change = 1;
-//uint8_t flag = 1;
 
 /* USER CODE END 0 */
 
@@ -236,13 +298,9 @@ int main(void)
   /* USER CODE END RTOS_TIMERS */
 
   /* Create the queue(s) */
-  /* definition and creation of myQueueTS */
-  osMessageQDef(myQueueTS, 3, uint16_t);
-  myQueueTSHandle = osMessageCreate(osMessageQ(myQueueTS), NULL);
-
-  /* definition and creation of myQueueTempo */
-  osMessageQDef(myQueueTempo, 16, uint8_t);
-  myQueueTempoHandle = osMessageCreate(osMessageQ(myQueueTempo), NULL);
+  /* definition and creation of queueSel */
+  osMessageQDef(queueSel, 16, uint16_t);
+  queueSelHandle = osMessageCreate(osMessageQ(queueSel), NULL);
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
@@ -258,12 +316,12 @@ int main(void)
   affichageHandle = osThreadCreate(osThread(affichage), NULL);
 
   /* definition and creation of task_select */
-  osThreadDef(task_select, fonction_select, osPriorityIdle, 0, 256);
+  osThreadDef(task_select, fonction_select, osPriorityHigh, 0, 256);
   task_selectHandle = osThreadCreate(osThread(task_select), NULL);
 
-  /* definition and creation of temporisation */
-  osThreadDef(temporisation, fonction_temporisation, osPriorityHigh, 0, 128);
-  temporisationHandle = osThreadCreate(osThread(temporisation), NULL);
+  /* definition and creation of task_calculPoss */
+  osThreadDef(task_calculPoss, fonction_calculPossibilites, osPriorityBelowNormal, 0, 1024);
+  task_calculPossHandle = osThreadCreate(osThread(task_calculPoss), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -1574,12 +1632,13 @@ void fonction_affichage(void const * argument)
 	uint16_t pointeurY 			= marge + pas / 2;
 	uint8_t color				= 2;
 	uint8_t i, j;
-	uint8_t filled = 0;
+	uint8_t filled = 0, possible = 0;
 	vTaskDelete(task_initHandle);
   /* Infinite loop */
   for(;;)
   {
 	  HAL_GPIO_TogglePin(LED12_GPIO_Port, LED12_Pin);
+	  // Clear que pour certains changements
 	  taskENTER_CRITICAL();
 	  if(change == 1)
 	  {
@@ -1587,13 +1646,16 @@ void fonction_affichage(void const * argument)
 		  change = 0;
 	  }
 	  taskEXIT_CRITICAL();
+
 	  for (i = 0; i < 8; i++)
 	  {
 		  for (j = 0; j < 8; j++)
 		  {
 			  taskENTER_CRITICAL();
 			  filled = chessboard[i][j].isFilled;
+			  possible = chessboard[i][j].isPossible;
 			  taskEXIT_CRITICAL();
+			  // Case avec un pion
 			  if ( filled != 0)
 			  {
 				  color = chessboard[i][j].piece_color;
@@ -1605,8 +1667,16 @@ void fonction_affichage(void const * argument)
 				  BSP_LCD_FillCircle(pointeurX, pointeurY, chessboard[i][j].rayon);
 				  xSemaphoreGive(mutexEcran);
 			  }
-
-
+			  //Case possible
+			  else if (possible != 0)
+			  {
+				  xSemaphoreTake(mutexEcran, portMAX_DELAY);
+				  BSP_LCD_SetTextColor(LCD_COLOR_RED);
+			      pointeurX = marge + pas / 2 + j * pas;
+			      pointeurY = marge + pas / 2 + i * pas;
+				  BSP_LCD_FillCircle(pointeurX, pointeurY, 9);
+				  xSemaphoreGive(mutexEcran);
+			  }
 		  }
 	  }
     vTaskDelayUntil(&xLastWakeTime, (TickType_t) xFrequency);
@@ -1634,6 +1704,7 @@ void fonction_select(void const * argument)
 	const uint8_t pas 			= 30;
 	const uint8_t marge			= 15;
 	uint8_t selected 			= 0;
+	uint16_t message[1];
   /* Infinite loop */
   for(;;)
   {
@@ -1658,6 +1729,8 @@ void fonction_select(void const * argument)
 			  {
 				  chessboard[line][col].rayon = 12;
 				  selected = 1;
+				  message[0] = (line << 8) + col;
+				  xQueueSend(queueSelHandle, &message, 0);
 			  }
 			  else if (chessboard[line][col].rayon == 12)
 			  {
@@ -1675,32 +1748,45 @@ void fonction_select(void const * argument)
   /* USER CODE END fonction_select */
 }
 
-/* USER CODE BEGIN Header_fonction_temporisation */
+/* USER CODE BEGIN Header_fonction_calculPossibilites */
 /**
-* @brief Function implementing the temporisation thread.
+* @brief Function implementing the task_calculPoss thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_fonction_temporisation */
-void fonction_temporisation(void const * argument)
+/* USER CODE END Header_fonction_calculPossibilites */
+void fonction_calculPossibilites(void const * argument)
 {
-  /* USER CODE BEGIN fonction_temporisation */
-	//uint16_t Message[1];
+  /* USER CODE BEGIN fonction_calculPossibilites */
+	uint16_t message[1];
+	uint8_t line, col;
+	uint16_t color;
+	struct cell possibilites[32];
+	uint8_t length, i;
   /* Infinite loop */
   for(;;)
   {
-	  /*
-	xQueueReceiveFromISR(myQueueTempoHandle, &Message, portMAX_DELAY);
-	flag = 1;
-	vTaskDelay(20);
-    taskENTER_CRITICAL();
-	flag = 0;
-	taskEXIT_CRITICAL();
-	*/
-	 vTaskDelay(20);
+	  // Recuperation information selection
+	  xQueueReceive(queueSelHandle, &message, portMAX_DELAY);
+	  line = (uint8_t) (message[0] >> 8);
+	  col  = (uint8_t)  message[0];
+	  taskENTER_CRITICAL();
+	  color = chessboard[line][col].piece_color;
+	  taskEXIT_CRITICAL();
 
+	  // Calcul des possibilites
+	  length = calculPossibilitesRec(line, col, color, possibilites, 0, 0);
+
+	  // Modification de l'echiquier avec cases possibles
+	  taskENTER_CRITICAL();
+	  for(i = 0; i < length; i++)
+	  {
+		  chessboard[possibilites[i].ligne][possibilites[i].colonne].isPossible = 1;
+	  }
+	  taskEXIT_CRITICAL();
+      osDelay(1);
   }
-  /* USER CODE END fonction_temporisation */
+  /* USER CODE END fonction_calculPossibilites */
 }
 
 /**

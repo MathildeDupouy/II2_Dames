@@ -148,18 +148,20 @@ uint8_t calculPossibilitesRec(uint16_t line, uint16_t col, uint8_t color, struct
  */
 uint8_t calculPossibilitesRec(uint16_t line, uint16_t col, uint8_t color, struct cell *possibilites, uint8_t index, uint8_t mangeant)
 {
-	int8_t pas = (color == 0) ? 1 : -1; // en fonction couleur on regarde lignes croissantes ou decroissantes
-	int8_t fin = (color == 0) ? 7 : 0; // en fonction couleur pas meme arrivee
-	// Controle de la colonne de droite :
+	int8_t pas   = (color == 0) ? 1 : -1; // en fonction couleur on regarde lignes croissantes ou decroissantes
+	int8_t fin   = (color == 0) ? 7 : 0; // en fonction couleur pas meme arrivee
+	int8_t debut = (color == 0) ? 0 : 7; // en fonction couleur pas meme arrivee
+
+	// Controle de la colonne de droite en avant :
 	if(col < 7 && line != fin)
 	{
-		// Controle colonne de droite : piece presente
+		// Controle colonne de droite en avant : piece presente
 		if(chessboard[line + pas][col + 1].isFilled == 1)
 		{
 			if(chessboard[line + pas][col + 1].piece_color == color) ;//Une piece de sa couleur bloque
-			else if((col <= 5) && (line + pas != fin))
+			else if((col <= 5) && (line + pas != fin)) // Assez de cases pour sauter
 			{
-				if(chessboard[line + 2 * pas][col + 2].isFilled == 0)
+				if(chessboard[line + 2 * pas][col + 2].isFilled == 0) // Pas de piece apres le saut
 				{
 					//Piece de l'autre couleur, place pour manger
 					struct cell possible = {line + 2 * pas, col + 2};
@@ -177,16 +179,35 @@ uint8_t calculPossibilitesRec(uint16_t line, uint16_t col, uint8_t color, struct
 			index++;
 		}
 	}
-	// Controle de la colonne de gauche :
+	// Controle colonne de droite en arriere : piece presente
+	if(col < 7 && line != debut)
+	{
+		if(chessboard[line - pas][col + 1].isFilled == 1)
+		{
+			if(chessboard[line - pas][col + 1].piece_color == color) ;//Une piece de sa couleur bloque
+			else if((col <= 5) && (line - pas != debut)) // Assez de cases pour sauter
+			{
+				if(chessboard[line - 2 * pas][col + 2].isFilled == 0) // Pas de piece apres le saut
+				{
+					//=> Piece de l'autre couleur, place pour manger
+					struct cell possible = {line - 2 * pas, col + 2};
+					possibilites[index] = possible;
+					index++;
+					index = calculPossibilitesRec(line - 2 * pas, col + 2, color, possibilites, index, 1);
+				}
+			}
+		}
+	}
+	// Controle de la colonne de gauche en avant :
 	if(col > 0 && line != fin)
 	{
 		// Controle colonne de gauche : piece presente
 		if(chessboard[line + pas][col - 1].isFilled == 1)
 		{
 			if(chessboard[line + pas][col - 1].piece_color == color) ;//Une piece de sa couleur bloque
-			else if((col >= 2) && (line + pas != fin))
+			else if((col >= 2) && (line + pas != fin)) // Assez de cases pour sauter
 			{
-				if(chessboard[line + 2 * pas][col - 2].isFilled == 0)
+				if(chessboard[line + 2 * pas][col - 2].isFilled == 0) // Pas de piece apres le saut
 				{
 					//Piece de l'autre couleur, place pour manger
 					struct cell possible = {line + 2 * pas, col - 2};
@@ -204,7 +225,25 @@ uint8_t calculPossibilitesRec(uint16_t line, uint16_t col, uint8_t color, struct
 			index++;
 		}
 	}
-
+	// Controle colonne de droite en arriere : piece presente
+	if(col > 0 && line != debut)
+	{
+		if(chessboard[line + pas][col - 1].isFilled == 1)
+		{
+			if(chessboard[line - pas][col - 1].piece_color == color) ;//Une piece de sa couleur bloque
+			else if((col >= 2) && (line - pas != debut)) // Assez de cases pour sauter
+			{
+				if(chessboard[line - 2 * pas][col - 2].isFilled == 0) // Pas de piece apres le saut
+				{
+					//Piece de l'autre couleur, place pour manger
+					struct cell possible = {line - 2 * pas, col - 2};
+					possibilites[index] = possible;
+					index++;
+					index = calculPossibilitesRec(line - 2 * pas, col - 2, color, possibilites, index, 1);
+				}
+			}
+		}
+	}
 	return index;
 
 }

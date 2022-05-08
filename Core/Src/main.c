@@ -99,7 +99,8 @@ struct chess_cell {
 };
 
 struct chess_cell chessboard[8][8];
-uint8_t change = 1;
+struct cell possible_eaten[32][12];
+uint8_t change = 1, isTurn = 0;
 
 /* USER CODE END PV */
 
@@ -130,7 +131,7 @@ void fonction_select(void const * argument);
 void fonction_calculPossibilites(void const * argument);
 
 /* USER CODE BEGIN PFP */
-uint8_t calculPossibilitesRec(uint16_t line, uint16_t col, uint8_t color, struct cell *possibilites, struct cell **eaten, uint8_t index, uint8_t nb_eaten);
+uint8_t calculPossibilitesRec(uint16_t line, uint16_t col, uint8_t color, struct cell *possibilites, uint8_t index, uint8_t nb_eaten);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -146,7 +147,7 @@ uint8_t calculPossibilitesRec(uint16_t line, uint16_t col, uint8_t color, struct
  *
  * retour		: indice de la prochaine case vide du tableau
  */
-uint8_t calculPossibilitesRec(uint16_t line, uint16_t col, uint8_t color, struct cell *possibilites, struct cell **eaten, uint8_t index, uint8_t nb_eaten)
+uint8_t calculPossibilitesRec(uint16_t line, uint16_t col, uint8_t color, struct cell *possibilites, uint8_t index, uint8_t nb_eaten)
 {
 	int8_t pas   = (color == 0) ? 1 : -1; // en fonction couleur on regarde lignes croissantes ou decroissantes
 	int8_t fin   = (color == 0) ? 7 : 0; // en fonction couleur pas meme arrivee
@@ -166,9 +167,11 @@ uint8_t calculPossibilitesRec(uint16_t line, uint16_t col, uint8_t color, struct
 					//Piece de l'autre couleur, place pour manger
 					struct cell possible = {line + 2 * pas, col + 2};
 					possibilites[index] = possible;
+					possible_eaten[index][nb_eaten].ligne = line + pas;
+					possible_eaten[index][nb_eaten].colonne = col + 1;
 					index++;
 					nb_eaten++;
-					index = calculPossibilitesRec(line + 2 * pas, col + 2, color, possibilites, eaten, index, nb_eaten);
+					index = calculPossibilitesRec(line + 2 * pas, col + 2, color, possibilites, index, nb_eaten);
 				}
 			}
 		}
@@ -193,9 +196,11 @@ uint8_t calculPossibilitesRec(uint16_t line, uint16_t col, uint8_t color, struct
 					//=> Piece de l'autre couleur, place pour manger
 					struct cell possible = {line - 2 * pas, col + 2};
 					possibilites[index] = possible;
+					possible_eaten[index][nb_eaten].ligne = line - pas;
+					possible_eaten[index][nb_eaten].colonne = col + 1;
 					index++;
 					nb_eaten++;
-					index = calculPossibilitesRec(line - 2 * pas, col + 2, color, possibilites, eaten, index, nb_eaten);
+					index = calculPossibilitesRec(line - 2 * pas, col + 2, color, possibilites, index, nb_eaten);
 				}
 			}
 		}
@@ -214,9 +219,11 @@ uint8_t calculPossibilitesRec(uint16_t line, uint16_t col, uint8_t color, struct
 					//Piece de l'autre couleur, place pour manger
 					struct cell possible = {line + 2 * pas, col - 2};
 					possibilites[index] = possible;
+					possible_eaten[index][nb_eaten].ligne = line + pas;
+					possible_eaten[index][nb_eaten].colonne = col - 1;
 					index++;
 					nb_eaten++;
-					index = calculPossibilitesRec(line + 2 * pas, col - 2, color, possibilites, eaten, index, nb_eaten);
+					index = calculPossibilitesRec(line + 2 * pas, col - 2, color, possibilites, index, nb_eaten);
 				}
 			}
 		}
@@ -241,9 +248,11 @@ uint8_t calculPossibilitesRec(uint16_t line, uint16_t col, uint8_t color, struct
 					//Piece de l'autre couleur, place pour manger
 					struct cell possible = {line - 2 * pas, col - 2};
 					possibilites[index] = possible;
+					possible_eaten[index][nb_eaten].ligne = line - pas;
+					possible_eaten[index][nb_eaten].colonne = col - 1;
 					index++;
 					nb_eaten++;
-					index = calculPossibilitesRec(line - 2 * pas, col - 2, color, possibilites, eaten, index, nb_eaten);
+					index = calculPossibilitesRec(line - 2 * pas, col - 2, color, possibilites, index, nb_eaten);
 				}
 			}
 		}
@@ -373,7 +382,7 @@ int main(void)
   task_selectHandle = osThreadCreate(osThread(task_select), NULL);
 
   /* definition and creation of task_calculPoss */
-  osThreadDef(task_calculPoss, fonction_calculPossibilites, osPriorityBelowNormal, 0, 2048);
+  osThreadDef(task_calculPoss, fonction_calculPossibilites, osPriorityBelowNormal, 0, 4096);
   task_calculPossHandle = osThreadCreate(osThread(task_calculPoss), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
@@ -1772,6 +1781,8 @@ void fonction_select(void const * argument)
 	uint8_t selected 			= 0;
 	uint8_t line_selected		= 8;
 	uint8_t col_selected		= 8;
+	struct cell eaten_piece;
+	uint8_t p;
 	uint16_t message[1];
   /* Infinite loop */
   for(;;)
@@ -1787,7 +1798,7 @@ void fonction_select(void const * argument)
 		  line = (posy - marge) / pas;
 		  taskENTER_CRITICAL();
 		  // Selection d'un pion
-		  if(chessboard[line][col].isFilled)
+		  if(chessboard[line][col].isFilled && (chessboard[line][col].piece_color == isTurn))
 		  {
 			  // Aucun pion n'etait selectionne
 			  if(chessboard[line][col].rayon < 12 && selected == 0)
@@ -1809,9 +1820,17 @@ void fonction_select(void const * argument)
 		  }
 
 		  // Case pour un deplacement
-		  if(chessboard[line][col].isPossible)
+		  if(chessboard[line][col].isPossible > 0)
 		  {
 			  chessboard[line_selected][col_selected].isFilled = 0;
+
+			  for (p = 0; p < 12; p++)
+			  {
+				  eaten_piece = possible_eaten[chessboard[line][col].isPossible - 1][p];
+				  if(eaten_piece.ligne != 8){
+					  chessboard[eaten_piece.ligne][eaten_piece.colonne].isFilled = 0;
+				  }
+			  }
 
 			  chessboard[line][col].isFilled = 1;
 			  chessboard[line][col].isPossible = 0;
@@ -1819,6 +1838,9 @@ void fonction_select(void const * argument)
 			  chessboard[line][col].rayon = 9;
 			  selected = 0;
 			  change = 1;
+
+			  // Changement de tour
+			  isTurn = (isTurn == 0) ? 1 : 0;
 		  }
 		  taskEXIT_CRITICAL();
 
@@ -1843,8 +1865,7 @@ void fonction_calculPossibilites(void const * argument)
 	uint8_t line, col;
 	uint16_t color;
 	struct cell possibilites[32];
-	struct cell eaten[32][12];
-	uint8_t length, i, m;
+	uint8_t length, i, m, n;
 
   /* Infinite loop */
   for(;;)
@@ -1858,19 +1879,22 @@ void fonction_calculPossibilites(void const * argument)
 	  taskEXIT_CRITICAL();
 
 	  // Calcul des possibilites
-	  /*
-	  for(m = 0; m < 1024; m++)
+	  	  // Reinitialisation des cases possibles
+	  for(m = 0; m < 32; m++)
 	  {
-		  eaten[m].colonne = 8;
-		  eaten[m].ligne   = 8;
-	  }*/
-	  length = calculPossibilitesRec(line, col, color, possibilites, eaten, 0, 0);
+		  for(n = 0; n < 12; n++)
+		  {
+			  possible_eaten[m][n].colonne = 8;
+			  possible_eaten[m][n].ligne   = 8;
+		  }
+	  }
+	  length = calculPossibilitesRec(line, col, color, possibilites, 0, 0);
 
 	  // Modification de l'echiquier avec cases possibles
 	  taskENTER_CRITICAL();
 	  for(i = 0; i < length; i++)
 	  {
-		  chessboard[possibilites[i].ligne][possibilites[i].colonne].isPossible = 1;
+		  chessboard[possibilites[i].ligne][possibilites[i].colonne].isPossible = i + 1;
 	  }
 	  taskEXIT_CRITICAL();
       osDelay(1);

@@ -79,6 +79,7 @@ osThreadId task_initHandle;
 osThreadId affichageHandle;
 osThreadId task_selectHandle;
 osThreadId task_calculPossHandle;
+osThreadId task_victoryHandle;
 osMessageQId queueSelHandle;
 /* USER CODE BEGIN PV */
 SemaphoreHandle_t mutexEcran;
@@ -94,13 +95,15 @@ struct chess_cell {
 	uint16_t colonne;
 	uint8_t isPossible;
 	uint8_t isFilled;
+	uint8_t isDame;
 	uint8_t piece_color;
 	uint8_t rayon;
 };
 
 struct chess_cell chessboard[8][8];
 struct cell possible_eaten[32][12];
-uint8_t change = 1, isTurn = 0;
+uint8_t change = 1, isTurn = 0, victory = 0;
+uint8_t nb_blue = 12, nb_white = 12;
 
 /* USER CODE END PV */
 
@@ -129,6 +132,7 @@ void fonction_init(void const * argument);
 void fonction_affichage(void const * argument);
 void fonction_select(void const * argument);
 void fonction_calculPossibilites(void const * argument);
+void fonctionVictory(void const * argument);
 
 /* USER CODE BEGIN PFP */
 uint8_t calculPossibilitesRec(uint16_t line, uint16_t col, uint8_t color, struct cell *possibilites, uint8_t index, uint8_t nb_eaten);
@@ -370,7 +374,7 @@ int main(void)
 
   /* Create the thread(s) */
   /* definition and creation of task_init */
-  osThreadDef(task_init, fonction_init, osPriorityAboveNormal, 0, 1024);
+  osThreadDef(task_init, fonction_init, osPriorityHigh, 0, 1024);
   task_initHandle = osThreadCreate(osThread(task_init), NULL);
 
   /* definition and creation of affichage */
@@ -378,12 +382,16 @@ int main(void)
   affichageHandle = osThreadCreate(osThread(affichage), NULL);
 
   /* definition and creation of task_select */
-  osThreadDef(task_select, fonction_select, osPriorityHigh, 0, 256);
+  osThreadDef(task_select, fonction_select, osPriorityAboveNormal, 0, 256);
   task_selectHandle = osThreadCreate(osThread(task_select), NULL);
 
   /* definition and creation of task_calculPoss */
   osThreadDef(task_calculPoss, fonction_calculPossibilites, osPriorityBelowNormal, 0, 4096);
   task_calculPossHandle = osThreadCreate(osThread(task_calculPoss), NULL);
+
+  /* definition and creation of task_victory */
+  osThreadDef(task_victory, fonctionVictory, osPriorityNormal, 0, 1024);
+  task_victoryHandle = osThreadCreate(osThread(task_victory), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -1640,10 +1648,18 @@ void fonction_init(void const * argument)
     TickType_t xLastWakeTime;
     const TickType_t xFrequency = 20;
     uint8_t i, j, cpt_lignesw = 0, cpt_colonnesw = 1, cpt_lignesb, cpt_colonnesb;
+    if(victory == 1)
+    {
+    	osThreadTerminate(task_victoryHandle);
+    	osThreadDef(affichage, fonction_affichage, osPriorityNormal, 0, 1024);
+    	affichageHandle = osThreadCreate(osThread(affichage), NULL);
+    	victory = 0;
+    }
   /* Infinite loop */
   for(;;)
   {
-
+	  cpt_lignesw = 0;
+	  cpt_colonnesw = 1;
 
 	  for (i = 0; i < 3; i++)
 	  {
@@ -1695,7 +1711,8 @@ void fonction_affichage(void const * argument)
 	uint8_t color				= 2;
 	uint8_t i, j;
 	uint8_t filled = 0, possible = 0;
-	vTaskDelete(task_initHandle);
+	osThreadTerminate(task_initHandle);
+
   /* Infinite loop */
   for(;;)
   {
@@ -1769,7 +1786,6 @@ void fonction_affichage(void const * argument)
 void fonction_select(void const * argument)
 {
   /* USER CODE BEGIN fonction_select */
-	//uint16_t MessageTS[1];
 	TickType_t xLastWakeTime;
 	const TickType_t xFrequency = 100;
 	static TS_StateTypeDef TS_State;
@@ -1823,12 +1839,17 @@ void fonction_select(void const * argument)
 		  if(chessboard[line][col].isPossible > 0)
 		  {
 			  chessboard[line_selected][col_selected].isFilled = 0;
-
+			  // Suppression des pions manges
 			  for (p = 0; p < 12; p++)
 			  {
 				  eaten_piece = possible_eaten[chessboard[line][col].isPossible - 1][p];
-				  if(eaten_piece.ligne != 8){
+				  if(eaten_piece.ligne != 8)
+				  {
 					  chessboard[eaten_piece.ligne][eaten_piece.colonne].isFilled = 0;
+			          if(isTurn == 0)
+			              nb_blue--;
+			          else
+			              nb_white--;
 				  }
 			  }
 
@@ -1839,9 +1860,48 @@ void fonction_select(void const * argument)
 			  selected = 0;
 			  change = 1;
 
+	          // Check la fin de jeu
+	          if(nb_blue == 0 || nb_white == 0)
+	          {
+
+	        	  osThreadDef(task_victory, fonctionVictory, osPriorityNormal, 0, 1024);
+	        	  task_victoryHandle = osThreadCreate(osThread(task_victory), NULL);
+				  nb_blue = 12;
+				  nb_white = 12;
+
+	        	  /*
+	        	  vTaskDelete(affichageHandle);
+	        	  BSP_LCD_SelectLayer(0);
+				  if (isTurn == 0)
+				  {
+					  BSP_LCD_Clear(LCD_COLOR_WHITE);
+					  BSP_LCD_SelectLayer(1);
+					  BSP_LCD_Clear(LCD_COLOR_WHITE);
+					  BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
+					  BSP_LCD_DisplayStringAtLine(10, "VICTOIRE des BLANCS !");
+					  BSP_LCD_DisplayStringAtLine(12, "Felicitations au gagnant !");
+				  }
+				  if (isTurn == 1)
+				  {
+					  BSP_LCD_Clear(LCD_COLOR_BLUE);
+					  BSP_LCD_SelectLayer(1);
+					  BSP_LCD_Clear(LCD_COLOR_BLUE);
+					  BSP_LCD_Clear(LCD_COLOR_BLUE);
+					  BSP_LCD_SelectLayer(1);
+					  BSP_LCD_Clear(LCD_COLOR_BLUE);
+					  BSP_LCD_SetTextColor(LCD_COLOR_WHITE);
+					  BSP_LCD_DisplayStringAtLine(10, "VICTOIRE des BLEUS !");
+					  BSP_LCD_DisplayStringAtLine(12, "Felicitations au gagnant !");
+					  nb_blue = 1;
+					  nb_white = 1;
+				  }
+*/
+	          }
+
 			  // Changement de tour
 			  isTurn = (isTurn == 0) ? 1 : 0;
 		  }
+
 		  taskEXIT_CRITICAL();
 
 	  }
@@ -1900,6 +1960,71 @@ void fonction_calculPossibilites(void const * argument)
       osDelay(1);
   }
   /* USER CODE END fonction_calculPossibilites */
+}
+
+/* USER CODE BEGIN Header_fonctionVictory */
+/**
+* @brief Function implementing the task_victory thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_fonctionVictory */
+void fonctionVictory(void const * argument)
+{
+  /* USER CODE BEGIN fonctionVictory */
+	TickType_t xLastWakeTime;
+	const TickType_t xFrequency = 100;
+	uint8_t init = 1;
+	static TS_StateTypeDef TS_State;
+  /* Infinite loop */
+  for(;;)
+  {
+	  if (init == 1)
+	  {
+		  osThreadTerminate(affichageHandle);
+		  init = 0;
+	  }
+	  BSP_LCD_SelectLayer(0);
+	  if (isTurn == 1)
+	  {
+		  BSP_LCD_Clear(LCD_COLOR_WHITE);
+		  BSP_LCD_SelectLayer(1);
+		  BSP_LCD_Clear(LCD_COLOR_WHITE);
+		  BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
+		  BSP_LCD_SetBackColor(LCD_COLOR_WHITE);
+		  BSP_LCD_DisplayStringAtLine(10, (uint8_t *)"VICTOIRE des BLANCS !");
+		  BSP_LCD_DisplayStringAtLine(12, (uint8_t *)"Felicitations au gagnant !");
+		  BSP_LCD_SetTextColor(LCD_COLOR_RED);
+		  BSP_LCD_DisplayStringAtLine(14, (uint8_t *)"Touchez l'ecran pour rejouer");
+	  }
+	  if (isTurn == 0)
+	  {
+		  BSP_LCD_Clear(LCD_COLOR_BLUE);
+		  BSP_LCD_SelectLayer(1);
+		  BSP_LCD_Clear(LCD_COLOR_BLUE);
+		  BSP_LCD_Clear(LCD_COLOR_BLUE);
+		  BSP_LCD_SelectLayer(1);
+		  BSP_LCD_Clear(LCD_COLOR_BLUE);
+		  BSP_LCD_SetTextColor(LCD_COLOR_WHITE);
+		  BSP_LCD_DisplayStringAtLine(10, (uint8_t *)"VICTOIRE des BLEUS !");
+		  BSP_LCD_DisplayStringAtLine(12, (uint8_t *)"Felicitations au gagnant !");
+		  BSP_LCD_SetTextColor(LCD_COLOR_RED);
+		  BSP_LCD_SetBackColor(LCD_COLOR_BLUE);
+		  BSP_LCD_DisplayStringAtLine(14, (uint8_t *)"Touchez l'ecran pour rejouer");
+		  nb_blue = 1;
+		  nb_white = 1;
+	  }
+	  BSP_TS_GetState(&TS_State);
+	  if(TS_State.touchDetected)
+	  {
+		  victory = 1;
+		  osThreadDef(task_init, fonction_init, osPriorityHigh, 0, 1024);
+		  task_initHandle = osThreadCreate(osThread(task_init), NULL);
+	  }
+	  vTaskDelayUntil(&xLastWakeTime, (TickType_t) xFrequency);
+  }
+
+  /* USER CODE END fonctionVictory */
 }
 
 /**

@@ -208,6 +208,13 @@ uint8_t calculPossibilitesRec(uint16_t line, uint16_t col, uint8_t color, struct
 				}
 			}
 		}
+		// Controle colonne de droite : pas de piece et pas en train de manger
+		else if (nb_eaten == 0)
+		{
+			struct cell possible = {line + pas, col - 1};
+			possibilites[index] = possible;
+			index++;
+		}
 	}
 	// Controle de la colonne de gauche en avant :
 	if(col > 0 && line != fin)
@@ -239,10 +246,10 @@ uint8_t calculPossibilitesRec(uint16_t line, uint16_t col, uint8_t color, struct
 			index++;
 		}
 	}
-	// Controle colonne de droite en arriere : piece presente
+	// Controle colonne de gauche en arriere : piece presente
 	if(col > 0 && line != debut)
 	{
-		if(chessboard[line + pas][col - 1].isFilled == 1)
+		if(chessboard[line - pas][col - 1].isFilled == 1)
 		{
 			if(chessboard[line - pas][col - 1].piece_color == color) ;//Une piece de sa couleur bloque
 			else if((col >= 2) && (line - pas != debut)) // Assez de cases pour sauter
@@ -1672,7 +1679,7 @@ void fonction_init(void const * argument)
 			  chessboard[cpt_lignesw][cpt_colonnesw].isFilled = 1;
 			  chessboard[cpt_lignesw][cpt_colonnesw].rayon = 9;
 			  chessboard[cpt_lignesw][cpt_colonnesw].piece_color = 0;
-			  // init black pieces
+			  // init blue pieces
 			  cpt_lignesb = cpt_lignesw + 5;
 			  cpt_colonnesb = (cpt_colonnesw % 2 == 0) ? cpt_colonnesw + 1 : cpt_colonnesw - 1;
 			  chessboard[cpt_lignesb][cpt_colonnesb].ligne = cpt_lignesb;
@@ -1704,13 +1711,15 @@ void fonction_affichage(void const * argument)
   /* USER CODE BEGIN fonction_affichage */
 	TickType_t xLastWakeTime;
 	const TickType_t xFrequency = 50;
-	const uint8_t pas 			= 30;
-	const uint8_t marge			= 15;
-	uint16_t pointeurX 			= marge + pas / 2;
-	uint16_t pointeurY 			= marge + pas / 2;
+	const uint8_t pasX 			= 30;
+	const uint8_t pasY 			= 30;
+	const uint8_t margeX		= 14;
+	const uint8_t margeY		= 14;
+	uint16_t pointeurX 			= margeX + pasX / 2;
+	uint16_t pointeurY 			= margeY + pasY / 2;
 	uint8_t color				= 2;
 	uint8_t i, j;
-	uint8_t filled = 0, possible = 0;
+	uint8_t filled = 0, possible = 0, dame = 0;
 	osThreadTerminate(task_initHandle);
 
   /* Infinite loop */
@@ -1724,7 +1733,20 @@ void fonction_affichage(void const * argument)
 		  BSP_LCD_Clear(0);
 	  }
 	  taskEXIT_CRITICAL();
-
+	  BSP_LCD_FillCircle(margeX, margeY, 3);
+	  BSP_LCD_FillCircle(margeX + pasX, margeY, 3);
+	  BSP_LCD_FillCircle(margeX, margeY  + pasY, 3);
+	  BSP_LCD_SetBackColor(LCD_COLOR_BLACK);
+	  if(isTurn == 0)
+	  {
+		  BSP_LCD_SetTextColor(LCD_COLOR_WHITE);
+		  BSP_LCD_DisplayStringAt(3 * margeX + 8 * pasX, margeY, (uint8_t *) "Au tour du joueur blanc", LEFT_MODE);
+	  }
+	  else
+	  {
+		  BSP_LCD_SetTextColor(LCD_COLOR_BLUE);
+		  BSP_LCD_DisplayStringAt(3 * margeX + 8 * pasX, margeY + 8 * pasY, (uint8_t *) "Au tour du joueur bleu", LEFT_MODE);
+	  }
 	  for (i = 0; i < 8; i++)
 	  {
 		  for (j = 0; j < 8; j++)
@@ -1732,6 +1754,7 @@ void fonction_affichage(void const * argument)
 			  taskENTER_CRITICAL();
 			  filled = chessboard[i][j].isFilled;
 			  possible = chessboard[i][j].isPossible;
+			  dame = chessboard[i][j].isDame;
 			  taskEXIT_CRITICAL();
 			  // Case avec un pion
 			  if ( filled != 0)
@@ -1740,9 +1763,10 @@ void fonction_affichage(void const * argument)
 				  xSemaphoreTake(mutexEcran, portMAX_DELAY);
 				  if (color == 1) BSP_LCD_SetTextColor(LCD_COLOR_BLUE);
 				  else if (color == 0) BSP_LCD_SetTextColor(LCD_COLOR_WHITE);
-			      pointeurX = marge + pas / 2 + j * pas;
-			      pointeurY = marge + pas / 2 + i * pas;
-				  BSP_LCD_FillCircle(pointeurX, pointeurY, chessboard[i][j].rayon);
+			      pointeurX = margeX + pasX / 2 + j * pasX;
+			      pointeurY = margeY + pasY / 2 + i * pasY;
+			      if (dame == 0) BSP_LCD_FillCircle(pointeurX, pointeurY, chessboard[i][j].rayon);
+			      else BSP_LCD_FillRect(pointeurX - chessboard[i][j].rayon, pointeurY - chessboard[i][j].rayon, chessboard[i][j].rayon * 2, chessboard[i][j].rayon * 2);
 				  xSemaphoreGive(mutexEcran);
 			  }
 			  //Case possible
@@ -1758,8 +1782,8 @@ void fonction_affichage(void const * argument)
 				  {
 					  xSemaphoreTake(mutexEcran, portMAX_DELAY);
 					  BSP_LCD_SetTextColor(LCD_COLOR_RED);
-				      pointeurX = marge + pas / 2 + j * pas;
-				      pointeurY = marge + pas / 2 + i * pas;
+				      pointeurX = margeX + pasX / 2 + j * pasX;
+				      pointeurY = margeY + pasY / 2 + i * pasY;
 					  BSP_LCD_FillCircle(pointeurX, pointeurY, 9);
 					  xSemaphoreGive(mutexEcran);
 				  }
@@ -1857,6 +1881,14 @@ void fonction_select(void const * argument)
 			  chessboard[line][col].isPossible = 0;
 			  chessboard[line][col].piece_color = chessboard[line_selected][col_selected].piece_color;
 			  chessboard[line][col].rayon = 9;
+			  // La ligne de la dame est atteinte !
+			  if((isTurn == 0 && line == 7) || (isTurn == 1 && line == 0)) chessboard[line][col].isDame = 1;
+			  // Si le pion etait une dame, il le reste
+			  if(chessboard[line_selected][col_selected].isDame == 1)
+			  {
+				  chessboard[line][col].isDame = 1;
+				  chessboard[line_selected][col_selected].isDame = 0;
+			  }
 			  selected = 0;
 			  change = 1;
 

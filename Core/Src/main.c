@@ -136,6 +136,7 @@ void fonctionVictory(void const * argument);
 
 /* USER CODE BEGIN PFP */
 uint8_t calculPossibilitesRec(uint16_t line, uint16_t col, uint8_t color, struct cell *possibilites, uint8_t index, uint8_t nb_eaten);
+uint8_t calculPossibilitesDame(uint16_t line, uint16_t col, uint8_t color, struct cell *possibilites);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -154,8 +155,8 @@ uint8_t calculPossibilitesRec(uint16_t line, uint16_t col, uint8_t color, struct
 uint8_t calculPossibilitesRec(uint16_t line, uint16_t col, uint8_t color, struct cell *possibilites, uint8_t index, uint8_t nb_eaten)
 {
 	int8_t pas   = (color == 0) ? 1 : -1; // en fonction couleur on regarde lignes croissantes ou decroissantes
-	int8_t fin   = (color == 0) ? 7 : 0; // en fonction couleur pas meme arrivee
-	int8_t debut = (color == 0) ? 0 : 7; // en fonction couleur pas meme arrivee
+	uint8_t fin   = (color == 0) ? 7 : 0; // en fonction couleur pas meme arrivee
+	uint8_t debut = (color == 0) ? 0 : 7; // en fonction couleur pas meme debut
 
 	// Controle de la colonne de droite en avant :
 	if(col < 7 && line != fin)
@@ -173,9 +174,15 @@ uint8_t calculPossibilitesRec(uint16_t line, uint16_t col, uint8_t color, struct
 					possibilites[index] = possible;
 					possible_eaten[index][nb_eaten].ligne = line + pas;
 					possible_eaten[index][nb_eaten].colonne = col + 1;
+					for (int i = index - nb_eaten; i < index; i++)
+					{
+						possible_eaten[index][i - index + nb_eaten].ligne = possible_eaten[i][i - index + nb_eaten].ligne;
+						possible_eaten[index][i - index + nb_eaten].colonne = possible_eaten[i][i - index + nb_eaten].colonne;
+					}
 					index++;
-					nb_eaten++;
-					index = calculPossibilitesRec(line + 2 * pas, col + 2, color, possibilites, index, nb_eaten);
+					chessboard[line + pas][col + 1].isFilled = 0; //On enleve la piece pour la recurrence
+					index = calculPossibilitesRec(line + 2 * pas, col + 2, color, possibilites, index, nb_eaten+1);
+					chessboard[line + pas][col + 1].isFilled = 1; //On enleve la piece pour la recurrence
 				}
 			}
 		}
@@ -202,9 +209,15 @@ uint8_t calculPossibilitesRec(uint16_t line, uint16_t col, uint8_t color, struct
 					possibilites[index] = possible;
 					possible_eaten[index][nb_eaten].ligne = line - pas;
 					possible_eaten[index][nb_eaten].colonne = col + 1;
+					for (int i = index - nb_eaten; i < index; i++)
+					{
+						possible_eaten[index][i - index + nb_eaten].ligne = possible_eaten[i][i - index + nb_eaten].ligne;
+						possible_eaten[index][i - index + nb_eaten].colonne = possible_eaten[i][i - index + nb_eaten].colonne;
+					}
 					index++;
-					nb_eaten++;
-					index = calculPossibilitesRec(line - 2 * pas, col + 2, color, possibilites, index, nb_eaten);
+					chessboard[line - pas][col + 1].isFilled = 0; //On enleve la piece pour la recurrence
+					index = calculPossibilitesRec(line - 2 * pas, col + 2, color, possibilites, index, nb_eaten+1);
+					chessboard[line - pas][col + 1].isFilled = 1;
 				}
 			}
 		}
@@ -232,9 +245,15 @@ uint8_t calculPossibilitesRec(uint16_t line, uint16_t col, uint8_t color, struct
 					possibilites[index] = possible;
 					possible_eaten[index][nb_eaten].ligne = line + pas;
 					possible_eaten[index][nb_eaten].colonne = col - 1;
+					for (int i = index - nb_eaten; i < index; i++)
+					{
+						possible_eaten[index][i - index + nb_eaten].ligne = possible_eaten[i][i - index + nb_eaten].ligne;
+						possible_eaten[index][i - index + nb_eaten].colonne = possible_eaten[i][i - index + nb_eaten].colonne;
+					}
 					index++;
-					nb_eaten++;
-					index = calculPossibilitesRec(line + 2 * pas, col - 2, color, possibilites, index, nb_eaten);
+					chessboard[line + pas][col - 1].isFilled = 0; //On enleve la piece pour la recurrence
+					index = calculPossibilitesRec(line + 2 * pas, col - 2, color, possibilites, index, nb_eaten+1);
+					chessboard[line + pas][col - 1].isFilled = 1; //On la remet
 				}
 			}
 		}
@@ -261,9 +280,15 @@ uint8_t calculPossibilitesRec(uint16_t line, uint16_t col, uint8_t color, struct
 					possibilites[index] = possible;
 					possible_eaten[index][nb_eaten].ligne = line - pas;
 					possible_eaten[index][nb_eaten].colonne = col - 1;
+					for (int i = index - nb_eaten; i < index; i++)
+					{
+						possible_eaten[index][i - index + nb_eaten].ligne = possible_eaten[i][i - index + nb_eaten].ligne;
+						possible_eaten[index][i - index + nb_eaten].colonne = possible_eaten[i][i - index + nb_eaten].colonne;
+					}
 					index++;
-					nb_eaten++;
-					index = calculPossibilitesRec(line - 2 * pas, col - 2, color, possibilites, index, nb_eaten);
+					chessboard[line - pas][col - 1].isFilled = 0;
+					index = calculPossibilitesRec(line - 2 * pas, col - 2, color, possibilites, index, nb_eaten+1);
+					chessboard[line - pas][col - 1].isFilled = 1;
 				}
 			}
 		}
@@ -272,7 +297,47 @@ uint8_t calculPossibilitesRec(uint16_t line, uint16_t col, uint8_t color, struct
 
 }
 
+uint8_t calculPossibilitesDame(uint16_t line, uint16_t col, uint8_t color, struct cell *possibilites)
+{
+	uint8_t index = 0, nb_eaten = 0;
+	/**
+	int8_t pas   = (color == 0) ? 1 : -1; // en fonction couleur on regarde lignes croissantes ou decroissantes
+	uint8_t fin   = (color == 0) ? 7 : 0; // en fonction couleur pas meme arrivee
+	uint8_t debut = (color == 0) ? 0 : 7; // en fonction couleur pas meme debut
+	uint8_t cpt = 1, pieceOnTheWay = 0;;
 
+	while (line + cpt < 8 && col + cpt < 8) // parcourt de la diagonale avant droite
+	{
+		if( chessboard[line + cpt][col + cpt].isFilled == 1 ) // Piece presente = prise en compte puis case suivante
+		{
+			pieceOnTheWay += 1;
+		}
+		else //Pas de piece = placement possible ou non en fonction de pieceOntheWay
+		{
+			switch (pieceOnTheWay) {
+				case 0:
+				{
+					struct cell possible = {line + cpt, col + cpt};
+					possibilites[index] = possible;
+					index++;
+				}
+					break;
+				case 1:
+				{
+					struct cell possible = {line - 2 * pas, col - 2};
+					possibilites[index] = possible;
+					index++;
+				}
+					break;
+				default:
+					break;
+			}
+
+		}
+		cpt++;
+	}**/
+	return index;
+}
 /* USER CODE END 0 */
 
 /**
@@ -1954,7 +2019,7 @@ void fonction_calculPossibilites(void const * argument)
 {
   /* USER CODE BEGIN fonction_calculPossibilites */
 	uint16_t message[1];
-	uint8_t line, col;
+	uint8_t line, col, isDame;
 	uint16_t color;
 	struct cell possibilites[32];
 	uint8_t length, i, m, n;
@@ -1967,11 +2032,12 @@ void fonction_calculPossibilites(void const * argument)
 	  line = (uint8_t) (message[0] >> 8);
 	  col  = (uint8_t)  message[0];
 	  taskENTER_CRITICAL();
-	  color = chessboard[line][col].piece_color;
+	  color  = chessboard[line][col].piece_color;
+	  isDame = chessboard[line][col].isDame;
 	  taskEXIT_CRITICAL();
 
 	  // Calcul des possibilites
-	  	  // Reinitialisation des cases possibles
+	  	  // Reinitialisation des cases mangees possibles
 	  for(m = 0; m < 32; m++)
 	  {
 		  for(n = 0; n < 12; n++)
@@ -1980,7 +2046,9 @@ void fonction_calculPossibilites(void const * argument)
 			  possible_eaten[m][n].ligne   = 8;
 		  }
 	  }
-	  length = calculPossibilitesRec(line, col, color, possibilites, 0, 0);
+	  	  // Calcul des possibilites
+	  if(isDame == 0) length = calculPossibilitesRec(line, col, color, possibilites, 0, 0);
+	  else 			  length = calculPossibilitesDame(line, col, color, possibilites);
 
 	  // Modification de l'echiquier avec cases possibles
 	  taskENTER_CRITICAL();

@@ -17,7 +17,7 @@ Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.o: \
  ../Middlewares/Third_Party/FreeRTOS/Source/include/queue.h \
  ../Middlewares/Third_Party/FreeRTOS/Source/include/event_groups.h \
  ../Middlewares/Third_Party/FreeRTOS/Source/include/timers.h \
- C:/Users/mathi/STM32CubeIDE/workspace_1.8.0/II2_TP2_ordonnancement/Drivers/CMSIS/Include/cmsis_gcc.h
+ c:\users\theob\git\ii2_dames\drivers\cmsis\include\cmsis_gcc.h
 
 ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.h:
 
@@ -53,4 +53,4 @@ Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.o: \
 
 ../Middlewares/Third_Party/FreeRTOS/Source/include/timers.h:
 
-C:/Users/mathi/STM32CubeIDE/workspace_1.8.0/II2_TP2_ordonnancement/Drivers/CMSIS/Include/cmsis_gcc.h:
+c:\users\theob\git\ii2_dames\drivers\cmsis\include\cmsis_gcc.h:

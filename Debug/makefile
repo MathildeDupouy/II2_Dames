@@ -64,8 +64,8 @@ all: main-build
 main-build: II2_Dames.elf secondary-outputs
 
 # Tool invocations
-II2_Dames.elf: $(OBJS) $(USER_OBJS) C:\Users\mathi\STM32CubeIDE\workspace_1.8.0\II2_Dames\STM32F746NGHX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "II2_Dames.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m7 -T"C:\Users\mathi\STM32CubeIDE\workspace_1.8.0\II2_Dames\STM32F746NGHX_FLASH.ld" --specs=nosys.specs -Wl,-Map="II2_Dames.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv5-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+II2_Dames.elf: $(OBJS) $(USER_OBJS) C:\Users\theob\git\II2_Dames\STM32F746NGHX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "II2_Dames.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m7 -T"C:\Users\theob\git\II2_Dames\STM32F746NGHX_FLASH.ld" --specs=nosys.specs -Wl,-Map="II2_Dames.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv5-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 

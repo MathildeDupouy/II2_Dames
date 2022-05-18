@@ -30,6 +30,9 @@
 #include "string.h"
 #include "math.h"
 #include "damier.h"
+#include "serveur_udp.h"
+
+
 
 /* USER CODE END Includes */
 
@@ -1628,6 +1631,8 @@ void fonction_init(void const * argument)
   /* init code for LWIP */
   MX_LWIP_Init();
   /* USER CODE BEGIN 5 */
+
+  udpserver_init() ;
     TickType_t xLastWakeTime;
     const TickType_t xFrequency = 20;
     uint8_t i, j, cpt_lignesw = 0, cpt_colonnesw = 1, cpt_lignesb, cpt_colonnesb;

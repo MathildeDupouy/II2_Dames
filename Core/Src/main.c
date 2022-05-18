@@ -30,7 +30,7 @@
 #include "string.h"
 #include "math.h"
 #include "damier.h"
-#include "serveur_udp.h"
+//#include "serveur_udp.h"
 
 
 
@@ -84,6 +84,7 @@ osThreadId affichageHandle;
 osThreadId task_selectHandle;
 osThreadId task_calculPossHandle;
 osThreadId task_victoryHandle;
+osThreadId task_menuHandle;
 osMessageQId queueSelHandle;
 /* USER CODE BEGIN PV */
 SemaphoreHandle_t mutexEcran;
@@ -137,6 +138,7 @@ void fonction_affichage(void const * argument);
 void fonction_select(void const * argument);
 void fonction_calculPossibilites(void const * argument);
 void fonctionVictory(void const * argument);
+void fonction_menu(void const * argument);
 
 /* USER CODE BEGIN PFP */
 uint8_t calculPossibilitesRec(uint16_t line, uint16_t col, uint8_t color, struct cell *possibilites, uint8_t index, uint8_t nb_eaten);
@@ -358,6 +360,7 @@ int main(void)
 	  HAL_ADC_ConfigChannel(&hadc3, &sConfig);
 	  HAL_ADC_Start(&hadc3);
 
+
   /* USER CODE END 2 */
 
   /* USER CODE BEGIN RTOS_MUTEX */
@@ -404,11 +407,21 @@ int main(void)
   osThreadDef(task_victory, fonctionVictory, osPriorityNormal, 0, 1024);
   task_victoryHandle = osThreadCreate(osThread(task_victory), NULL);
 
+  /* definition and creation of task_menu */
+  osThreadDef(task_menu, fonction_menu, osPriorityHigh, 0, 512);
+  task_menuHandle = osThreadCreate(osThread(task_menu), NULL);
+
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
+
+  //Suppression des taches qui ne doivent pas fonctionner a l'initialisation
+  osThreadTerminate(task_victoryHandle);
+  //osThreadTerminate(task_initHandle);
+
   /* USER CODE END RTOS_THREADS */
 
   /* Start scheduler */
+
   osKernelStart();
 
   /* We should never get here as control is now taken by the scheduler */
@@ -1632,10 +1645,11 @@ void fonction_init(void const * argument)
   MX_LWIP_Init();
   /* USER CODE BEGIN 5 */
 
-  udpserver_init() ;
+  //udpserver_init() ;
     TickType_t xLastWakeTime;
     const TickType_t xFrequency = 20;
     uint8_t i, j, cpt_lignesw = 0, cpt_colonnesw = 1, cpt_lignesb, cpt_colonnesb;
+    uint8_t init = 1;
     if(victory == 1)
     {
     	osThreadTerminate(task_victoryHandle);
@@ -1643,9 +1657,15 @@ void fonction_init(void const * argument)
     	affichageHandle = osThreadCreate(osThread(affichage), NULL);
     	victory = 0;
     }
+
   /* Infinite loop */
   for(;;)
   {
+	  if (init == 1)
+	  {
+		  osThreadTerminate(task_menuHandle);
+		  init = 0;
+	  }
 	  cpt_lignesw = 0;
 	  cpt_colonnesw = 1;
 
@@ -1994,11 +2014,10 @@ void fonctionVictory(void const * argument)
 		  BSP_LCD_SetTextColor(LCD_COLOR_RED);
 		  BSP_LCD_DisplayStringAtLine(14, (uint8_t *)"Touchez l'ecran pour rejouer");
 	  }
-	  if (isTurn == 0)
+	  else if (isTurn == 0)
 	  {
 		  BSP_LCD_Clear(LCD_COLOR_BLUE);
 		  BSP_LCD_SelectLayer(1);
-		  BSP_LCD_Clear(LCD_COLOR_BLUE);
 		  BSP_LCD_Clear(LCD_COLOR_BLUE);
 		  BSP_LCD_SelectLayer(1);
 		  BSP_LCD_Clear(LCD_COLOR_BLUE);
@@ -2022,6 +2041,38 @@ void fonctionVictory(void const * argument)
   }
 
   /* USER CODE END fonctionVictory */
+}
+
+/* USER CODE BEGIN Header_fonction_menu */
+/**
+* @brief Function implementing the task_menu thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_fonction_menu */
+void fonction_menu(void const * argument)
+{
+  /* USER CODE BEGIN fonction_menu */
+	uint8_t init = 1;
+  /* Infinite loop */
+  for(;;)
+  {
+	  /*
+	  BSP_LCD_Clear(LCD_COLOR_WHITE);
+	  BSP_LCD_SetTextColor(LCD_COLOR_BLUE);
+	  BSP_LCD_FillRect(0, 0, BSP_LCD_GetXSize()/2, BSP_LCD_GetYSize());
+
+	  //Creation de la tache init pour qu'elle demarre
+	  if (init == 1)
+	  {
+		  osThreadDef(task_init, fonction_init, osPriorityHigh, 0, 1024);
+		  task_initHandle = osThreadCreate(osThread(task_init), NULL);
+		  init = 0;
+	  }
+*/
+    osDelay(1000);
+  }
+  /* USER CODE END fonction_menu */
 }
 
 /**

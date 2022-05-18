@@ -1841,8 +1841,10 @@ void fonction_select(void const * argument)
 		  }
 
 		  // Case pour un deplacement
+		  // TODO globalement tout se qui doit etre transmis se passe ici car seul moment où on deplace un pion et rend la main
 		  if(chessboard[line][col].isPossible > 0)
 		  {
+			  // TODO envoi de la case de depart par un message "D + line_selected + col_selected"
 			  chessboard[line_selected][col_selected].isFilled = 0;
 			  // Suppression des pions manges
 			  for (p = 0; p < 12; p++)
@@ -1850,7 +1852,9 @@ void fonction_select(void const * argument)
 				  eaten_piece = possible_eaten[chessboard[line][col].isPossible - 1][p];
 				  if(eaten_piece.ligne != 8)
 				  {
+					  // TODO envoi de la case mangee par un message "M + eaten_piece.ligne + eaten_piece.colonne"
 					  chessboard[eaten_piece.ligne][eaten_piece.colonne].isFilled = 0;
+					  // TODO decrementation a faire a la reception de chaque pion mange
 			          if(isTurn == 0)
 			              nb_blue--;
 			          else
@@ -1858,6 +1862,8 @@ void fonction_select(void const * argument)
 				  }
 			  }
 
+			  // TODO envoi de la case d'arrivee avec le message "A + line + col"
+			  // TODO faire a la reception les lignes suivantes
 			  chessboard[line][col].isFilled = 1;
 			  chessboard[line][col].isPossible = 0;
 			  chessboard[line][col].piece_color = chessboard[line_selected][col_selected].piece_color;
@@ -1874,6 +1880,7 @@ void fonction_select(void const * argument)
 			  change = 1;
 
 	          // Check la fin de jeu
+			  // TODO a faire a la reception aussi OU envoi d'un message "F + couleur gagnant"
 	          if(nb_blue == 0 || nb_white == 0)
 	          {
 
@@ -1882,36 +1889,10 @@ void fonction_select(void const * argument)
 				  nb_blue = 12;
 				  nb_white = 12;
 
-	        	  /*
-	        	  vTaskDelete(affichageHandle);
-	        	  BSP_LCD_SelectLayer(0);
-				  if (isTurn == 0)
-				  {
-					  BSP_LCD_Clear(LCD_COLOR_WHITE);
-					  BSP_LCD_SelectLayer(1);
-					  BSP_LCD_Clear(LCD_COLOR_WHITE);
-					  BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
-					  BSP_LCD_DisplayStringAtLine(10, "VICTOIRE des BLANCS !");
-					  BSP_LCD_DisplayStringAtLine(12, "Felicitations au gagnant !");
-				  }
-				  if (isTurn == 1)
-				  {
-					  BSP_LCD_Clear(LCD_COLOR_BLUE);
-					  BSP_LCD_SelectLayer(1);
-					  BSP_LCD_Clear(LCD_COLOR_BLUE);
-					  BSP_LCD_Clear(LCD_COLOR_BLUE);
-					  BSP_LCD_SelectLayer(1);
-					  BSP_LCD_Clear(LCD_COLOR_BLUE);
-					  BSP_LCD_SetTextColor(LCD_COLOR_WHITE);
-					  BSP_LCD_DisplayStringAtLine(10, "VICTOIRE des BLEUS !");
-					  BSP_LCD_DisplayStringAtLine(12, "Felicitations au gagnant !");
-					  nb_blue = 1;
-					  nb_white = 1;
-				  }
-*/
 	          }
 
 			  // Changement de tour
+	          // TODO a faire a la fin de la reception (donc critere a determiner) OU envoi d'un message "C"
 			  isTurn = (isTurn == 0) ? 1 : 0;
 		  }
 
@@ -1985,6 +1966,9 @@ void fonction_calculPossibilites(void const * argument)
 void fonctionVictory(void const * argument)
 {
   /* USER CODE BEGIN fonctionVictory */
+
+	// TODO a modifier si l'on veut distinguer les deux ecrans de finish en fonction des joueurs
+
 	TickType_t xLastWakeTime;
 	const TickType_t xFrequency = 100;
 	uint8_t init = 1;

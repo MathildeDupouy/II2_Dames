@@ -30,7 +30,7 @@
 #include "string.h"
 #include "math.h"
 #include "damier.h"
-//#include "serveur_udp.h"
+#include "serveur_udp.h"
 
 
 
@@ -85,6 +85,7 @@ osThreadId task_selectHandle;
 osThreadId task_calculPossHandle;
 osThreadId task_victoryHandle;
 osThreadId task_menuHandle;
+osThreadId tache_defaultHandle;
 osMessageQId queueSelHandle;
 /* USER CODE BEGIN PV */
 SemaphoreHandle_t mutexEcran;
@@ -139,6 +140,7 @@ void fonction_select(void const * argument);
 void fonction_calculPossibilites(void const * argument);
 void fonctionVictory(void const * argument);
 void fonction_menu(void const * argument);
+void StartTask07(void const * argument);
 
 /* USER CODE BEGIN PFP */
 uint8_t calculPossibilitesRec(uint16_t line, uint16_t col, uint8_t color, struct cell *possibilites, uint8_t index, uint8_t nb_eaten);
@@ -411,6 +413,10 @@ int main(void)
   osThreadDef(task_menu, fonction_menu, osPriorityHigh, 0, 512);
   task_menuHandle = osThreadCreate(osThread(task_menu), NULL);
 
+  /* definition and creation of tache_default */
+  osThreadDef(tache_default, StartTask07, osPriorityIdle, 0, 128);
+  tache_defaultHandle = osThreadCreate(osThread(tache_default), NULL);
+
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
 
@@ -421,7 +427,6 @@ int main(void)
   /* USER CODE END RTOS_THREADS */
 
   /* Start scheduler */
-
   osKernelStart();
 
   /* We should never get here as control is now taken by the scheduler */
@@ -445,6 +450,9 @@ void SystemClock_Config(void)
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
 
+  /** Configure LSE Drive Capability
+  */
+  HAL_PWR_EnableBkUpAccess();
   /** Configure the main internal regulator output voltage
   */
   __HAL_RCC_PWR_CLK_ENABLE();
@@ -1645,7 +1653,7 @@ void fonction_init(void const * argument)
   MX_LWIP_Init();
   /* USER CODE BEGIN 5 */
 
-  //udpserver_init() ;
+  udpserver_init() ;
     TickType_t xLastWakeTime;
     const TickType_t xFrequency = 20;
     uint8_t i, j, cpt_lignesw = 0, cpt_colonnesw = 1, cpt_lignesb, cpt_colonnesb;
@@ -2073,6 +2081,25 @@ void fonction_menu(void const * argument)
     osDelay(1000);
   }
   /* USER CODE END fonction_menu */
+}
+
+/* USER CODE BEGIN Header_StartTask07 */
+/**
+* @brief Function implementing the tache_lwip_init thread.
+* @param argument: Not used
+* @retval None
+* Je n'ai absolument pas confiance en free rtos du coup nouvelle tache default spéciale
+*/
+/* USER CODE END Header_StartTask07 */
+void StartTask07(void const * argument)
+{
+  /* USER CODE BEGIN StartTask07 */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END StartTask07 */
 }
 
 /**

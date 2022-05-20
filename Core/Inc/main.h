@@ -75,6 +75,8 @@ void Error_Handler(void);
 #define SPDIF_RX0_GPIO_Port GPIOD
 #define SDMMC_CK_Pin GPIO_PIN_12
 #define SDMMC_CK_GPIO_Port GPIOC
+#define BP2_Pin GPIO_PIN_15
+#define BP2_GPIO_Port GPIOA
 #define SWCLK_Pin GPIO_PIN_14
 #define SWCLK_GPIO_Port GPIOA
 #define SWDIO_Pin GPIO_PIN_13
@@ -99,6 +101,7 @@ void Error_Handler(void);
 #define OTG_FS_VBUS_GPIO_Port GPIOJ
 #define Audio_INT_Pin GPIO_PIN_6
 #define Audio_INT_GPIO_Port GPIOD
+#define Audio_INT_EXTI_IRQn EXTI9_5_IRQn
 #define FMC_D2_Pin GPIO_PIN_0
 #define FMC_D2_GPIO_Port GPIOD
 #define SDMMC_D3_Pin GPIO_PIN_11
@@ -179,7 +182,6 @@ void Error_Handler(void);
 #define FMC_A2_GPIO_Port GPIOF
 #define LCD_INT_Pin GPIO_PIN_13
 #define LCD_INT_GPIO_Port GPIOI
-#define LCD_INT_EXTI_IRQn EXTI15_10_IRQn
 #define LCD_R0_Pin GPIO_PIN_15
 #define LCD_R0_GPIO_Port GPIOI
 #define LCD_G4_Pin GPIO_PIN_11

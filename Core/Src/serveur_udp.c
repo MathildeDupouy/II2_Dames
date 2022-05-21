@@ -36,7 +36,8 @@ static void udp_thread(void *arg){
 
 	if (conn != NULL){
 		/* rattacher la connexion a un port avec un adresse IP disponible */
-		err = netconn_bind(conn, IP_ADDR_ANY, 7) ;
+		//err = netconn_bind(conn, IP_ADDR_ANY, 7) ; // version inconnue
+		err = netconn_bind(conn, NULL, 7) ;
 
 		if(err == ERR_OK){
 			/* On rentre dans la boucle de la connexion */
@@ -44,6 +45,7 @@ static void udp_thread(void *arg){
 				// receive data in the buffer
 				recv_err = netconn_recv(conn, &buf) ;
 				if (recv_err == ERR_OK) { // check if the data is received correctly
+					taskENTER_CRITICAL( ) ;
 					addr = netbuf_fromaddr(buf); // get the addr or the client in the msg
 					port = netbuf_fromport(buf); // get the port of the client
 
@@ -69,6 +71,7 @@ static void udp_thread(void *arg){
 					pbuf_free(txBuffer) ;
 					netbuf_delete(buf) ;
 					// on a bien servi la connexion on peut attendre un nouveau message.
+					taskEXIT_CRITICAL( );
 
 				}
 

@@ -83,6 +83,7 @@ osThreadId task_victoryHandle;
 osMessageQId queueSelHandle;
 /* USER CODE BEGIN PV */
 SemaphoreHandle_t mutexEcran;
+SemaphoreHandle_t mutexChessboard;
 
 struct cell {
 	uint16_t ligne;
@@ -297,45 +298,71 @@ uint8_t calculPossibilitesRec(uint16_t line, uint16_t col, uint8_t color, struct
 
 }
 
+/**
+ * Calcule récursivement les cases possibles pour une dame a partir de la ligne, de la colonne et de la couleur.
+ * line			: ligne de depart
+ * col			: colonne de depart
+ * color		: couleur de la piece a deplacer
+ * possibilites	: tableau qui va contenir les possibilites (vide initialement)
+ * index		: indice de la prochaine case vide du tableau (a initialiser a 0)
+ * nb_eaten		: donne le nombre de pieces mangees jusqu'à cette possible case (init a 0)
+ *
+ * retour		: indice de la prochaine case vide du tableau
+ */
 uint8_t calculPossibilitesDame(uint16_t line, uint16_t col, uint8_t color, struct cell *possibilites)
 {
-	uint8_t index = 0, nb_eaten = 0;
-	/**
-	int8_t pas   = (color == 0) ? 1 : -1; // en fonction couleur on regarde lignes croissantes ou decroissantes
-	uint8_t fin   = (color == 0) ? 7 : 0; // en fonction couleur pas meme arrivee
-	uint8_t debut = (color == 0) ? 0 : 7; // en fonction couleur pas meme debut
-	uint8_t cpt = 1, pieceOnTheWay = 0;;
+	uint8_t index = 0;
+	int pas_l_tab[] = {-1, 1};
+	int pas_c_tab[] = {-1, 1};
+	int pas_l, pas_c;
+	uint8_t fin = 7, debut = 0;
+	int8_t d_l, d_c;
 
-	while (line + cpt < 8 && col + cpt < 8) // parcourt de la diagonale avant droite
+	for (uint8_t i = 0; i < 2; i++)
 	{
-		if( chessboard[line + cpt][col + cpt].isFilled == 1 ) // Piece presente = prise en compte puis case suivante
+		for (uint8_t j = 0; j < 2; j++)
 		{
-			pieceOnTheWay += 1;
-		}
-		else //Pas de piece = placement possible ou non en fonction de pieceOntheWay
-		{
-			switch (pieceOnTheWay) {
-				case 0:
+			// Initialisation pas et fin de la diagonale observee
+			pas_l = pas_l_tab[i];
+			pas_c = pas_c_tab[j];
+			d_l = line + pas_l;
+			d_c = col + pas_c;
+			while (d_l <= fin && d_c >= debut)
+			{
+				// place pour se mettre
+				if (chessboard[d_l][d_c].isFilled == 0)
 				{
-					struct cell possible = {line + cpt, col + cpt};
+					struct cell possible = {d_l, d_c};
 					possibilites[index] = possible;
 					index++;
+					d_l = d_l + pas_l;
+					d_c = d_c + pas_c;
 				}
-					break;
-				case 1:
+				// un pion est present
+				else
 				{
-					struct cell possible = {line - 2 * pas, col - 2};
-					possibilites[index] = possible;
-					index++;
+					// On peut sauter
+					if((d_l + pas_l) <= fin && (d_l + pas_l) >= debut && (d_c + pas_c) <= fin && (d_c + 2 * pas_c) >= debut)
+					{
+						// Pas de piece genante
+						if(chessboard[d_l + 2 * pas_l][d_c + pas_c].isFilled == 0)
+						{
+							struct cell possible = {d_l + pas_l, d_c + pas_c};
+							possibilites[index] = possible;
+							possible_eaten[index][0].ligne = d_l;
+							possible_eaten[index][0].colonne = d_c;
+							index++;
+							chessboard[d_l][d_c].isFilled = 0; //On enleve la piece pour la recurrence
+							index = calculPossibilitesRec(d_l + pas_l, d_c + pas_c, color, possibilites, index, 1);
+							chessboard[d_l][d_c].isFilled = 1; //On la remet
+						}
+					}
+					break;
 				}
-					break;
-				default:
-					break;
 			}
-
 		}
-		cpt++;
-	}**/
+	}
+
 	return index;
 }
 /* USER CODE END 0 */
@@ -424,6 +451,7 @@ int main(void)
   /* USER CODE BEGIN RTOS_MUTEX */
   /* add mutexes, ... */
     mutexEcran = xSemaphoreCreateMutex();
+    mutexChessboard = xSemaphoreCreateMutex();
 
   /* USER CODE END RTOS_MUTEX */
 
@@ -1737,7 +1765,7 @@ void fonction_init(void const * argument)
 	  {
 		  for (j = 0; j < 4; j++)
 		  {
-			  taskENTER_CRITICAL();
+			  xSemaphoreTake(mutexChessboard, portMAX_DELAY);
 			  	 // init white pieces
 			  chessboard[cpt_lignesw][cpt_colonnesw].ligne = cpt_lignesw;
 			  chessboard[cpt_lignesw][cpt_colonnesw].colonne = cpt_colonnesw;
@@ -1752,7 +1780,7 @@ void fonction_init(void const * argument)
 			  chessboard[cpt_lignesb][cpt_colonnesb].isFilled = 1;
 			  chessboard[cpt_lignesb][cpt_colonnesb].rayon = 9;
 			  chessboard[cpt_lignesb][cpt_colonnesb].piece_color = 1;
-			  taskEXIT_CRITICAL();
+			  xSemaphoreGive(mutexChessboard);
 			  cpt_colonnesw += 2;
 		  }
 		  cpt_colonnesw = (cpt_colonnesw % 2 == 0) ? 1 : 0;
@@ -1792,12 +1820,12 @@ void fonction_affichage(void const * argument)
   {
 	  HAL_GPIO_TogglePin(LED12_GPIO_Port, LED12_Pin);
 	  // Clear que pour certains changements
-	  taskENTER_CRITICAL();
+	  xSemaphoreTake(mutexChessboard, portMAX_DELAY);
 	  if(change == 1)
 	  {
 		  BSP_LCD_Clear(0);
 	  }
-	  taskEXIT_CRITICAL();
+	  xSemaphoreGive(mutexChessboard);
 	  BSP_LCD_FillCircle(margeX, margeY, 3);
 	  BSP_LCD_FillCircle(margeX + pasX, margeY, 3);
 	  BSP_LCD_FillCircle(margeX, margeY  + pasY, 3);
@@ -1816,11 +1844,11 @@ void fonction_affichage(void const * argument)
 	  {
 		  for (j = 0; j < 8; j++)
 		  {
-			  taskENTER_CRITICAL();
+			  xSemaphoreTake(mutexChessboard, portMAX_DELAY);
 			  filled = chessboard[i][j].isFilled;
 			  possible = chessboard[i][j].isPossible;
 			  dame = chessboard[i][j].isDame;
-			  taskEXIT_CRITICAL();
+			  xSemaphoreGive(mutexChessboard);
 			  // Case avec un pion
 			  if ( filled != 0)
 			  {
@@ -1839,9 +1867,9 @@ void fonction_affichage(void const * argument)
 			  {
 				  if (change == 1) // Il y a eu une deselection, reinitialisation des possibles et pas d'affichage
 				  {
-					  taskENTER_CRITICAL();
+					  xSemaphoreTake(mutexChessboard, portMAX_DELAY);
 					  chessboard[i][j].isPossible = 0;
-					  taskEXIT_CRITICAL();
+					  xSemaphoreGive(mutexChessboard);
 				  }
 				  else
 				  {
@@ -1856,9 +1884,9 @@ void fonction_affichage(void const * argument)
 			  }
 		  }
 	  }
-	taskENTER_CRITICAL();
+	xSemaphoreTake(mutexChessboard, portMAX_DELAY);
 	change = 0; // S'il y avait des changements, ils on ete pris en compte
-	taskEXIT_CRITICAL();
+	 xSemaphoreGive(mutexChessboard);
 
     vTaskDelayUntil(&xLastWakeTime, (TickType_t) xFrequency);
   }
@@ -1901,7 +1929,7 @@ void fonction_select(void const * argument)
 
 		  col = (posx - marge) / pas;
 		  line = (posy - marge) / pas;
-		  taskENTER_CRITICAL();
+		  xSemaphoreTake(mutexChessboard, portMAX_DELAY);
 		  // Selection d'un pion
 		  if(chessboard[line][col].isFilled && (chessboard[line][col].piece_color == isTurn))
 		  {
@@ -1999,7 +2027,7 @@ void fonction_select(void const * argument)
 			  isTurn = (isTurn == 0) ? 1 : 0;
 		  }
 
-		  taskEXIT_CRITICAL();
+		  xSemaphoreGive(mutexChessboard);
 
 	  }
 
@@ -2031,13 +2059,14 @@ void fonction_calculPossibilites(void const * argument)
 	  xQueueReceive(queueSelHandle, &message, portMAX_DELAY);
 	  line = (uint8_t) (message[0] >> 8);
 	  col  = (uint8_t)  message[0];
-	  taskENTER_CRITICAL();
+	  xSemaphoreTake(mutexChessboard, portMAX_DELAY);
 	  color  = chessboard[line][col].piece_color;
 	  isDame = chessboard[line][col].isDame;
-	  taskEXIT_CRITICAL();
+	  xSemaphoreGive(mutexChessboard);
 
 	  // Calcul des possibilites
 	  	  // Reinitialisation des cases mangees possibles
+	  xSemaphoreTake(mutexChessboard, portMAX_DELAY);
 	  for(m = 0; m < 32; m++)
 	  {
 		  for(n = 0; n < 12; n++)
@@ -2046,17 +2075,20 @@ void fonction_calculPossibilites(void const * argument)
 			  possible_eaten[m][n].ligne   = 8;
 		  }
 	  }
+	  xSemaphoreGive(mutexChessboard);
+	  xSemaphoreTake(mutexChessboard, portMAX_DELAY);
 	  	  // Calcul des possibilites
 	  if(isDame == 0) length = calculPossibilitesRec(line, col, color, possibilites, 0, 0);
 	  else 			  length = calculPossibilitesDame(line, col, color, possibilites);
+	  xSemaphoreGive(mutexChessboard);
 
 	  // Modification de l'echiquier avec cases possibles
-	  taskENTER_CRITICAL();
+	  xSemaphoreTake(mutexChessboard, portMAX_DELAY);
 	  for(i = 0; i < length; i++)
 	  {
 		  chessboard[possibilites[i].ligne][possibilites[i].colonne].isPossible = i + 1;
 	  }
-	  taskEXIT_CRITICAL();
+	  xSemaphoreGive(mutexChessboard);
       osDelay(1);
   }
   /* USER CODE END fonction_calculPossibilites */

@@ -1748,16 +1748,17 @@ void fonction_init(void const * argument)
     TickType_t xLastWakeTime;
     const TickType_t xFrequency = 20;
     uint8_t i, j, cpt_lignesw = 0, cpt_colonnesw = 1, cpt_lignesb, cpt_colonnesb;
-    if(victory == 1)
-    {
-    	osThreadTerminate(task_victoryHandle);
-    	osThreadDef(affichage, fonction_affichage, osPriorityNormal, 0, 1024);
-    	affichageHandle = osThreadCreate(osThread(affichage), NULL);
-    	victory = 0;
-    }
+
   /* Infinite loop */
   for(;;)
   {
+	  if(victory == 1)
+	  {
+	    	osThreadTerminate(task_victoryHandle);
+	    	osThreadDef(affichage, fonction_affichage, osPriorityNormal, 0, 1024);
+	    	affichageHandle = osThreadCreate(osThread(affichage), NULL);
+	    	victory = 0;
+	  }
 	  cpt_lignesw = 0;
 	  cpt_colonnesw = 1;
 
@@ -1813,11 +1814,16 @@ void fonction_affichage(void const * argument)
 	uint8_t color				= 2;
 	uint8_t i, j;
 	uint8_t filled = 0, possible = 0, dame = 0;
-	osThreadTerminate(task_initHandle);
+	victory = 1;
 
   /* Infinite loop */
   for(;;)
   {
+	  if (victory == 1)
+	  {
+		  osThreadTerminate(task_initHandle);
+		  victory = 0;
+	  }
 	  HAL_GPIO_TogglePin(LED12_GPIO_Port, LED12_Pin);
 	  // Clear que pour certains changements
 	  xSemaphoreTake(mutexChessboard, portMAX_DELAY);
@@ -2120,6 +2126,7 @@ void fonctionVictory(void const * argument)
 	  if (isTurn == 1)
 	  {
 		  BSP_LCD_Clear(LCD_COLOR_WHITE);
+		  BSP_LCD_SetBackColor(LCD_COLOR_WHITE);
 		  BSP_LCD_SelectLayer(1);
 		  BSP_LCD_Clear(LCD_COLOR_WHITE);
 		  BSP_LCD_SetTextColor(LCD_COLOR_BLACK);
@@ -2132,6 +2139,7 @@ void fonctionVictory(void const * argument)
 	  if (isTurn == 0)
 	  {
 		  BSP_LCD_Clear(LCD_COLOR_BLUE);
+		  BSP_LCD_SetBackColor(LCD_COLOR_BLUE);
 		  BSP_LCD_SelectLayer(1);
 		  BSP_LCD_Clear(LCD_COLOR_BLUE);
 		  BSP_LCD_Clear(LCD_COLOR_BLUE);

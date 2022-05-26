@@ -25,10 +25,10 @@ main.c:1364:13:MX_FMC_Init	40	static
 main.c:1415:13:MX_GPIO_Init	72	static
 main.c:1700:6:HAL_UART_RxCpltCallback	16	static
 main.c:1719:6:HAL_GPIO_EXTI_Callback	16	static
-main.c:1745:6:fonction_init	72	static
-main.c:1803:6:fonction_affichage	56	static
-main.c:1909:6:fonction_select	80	static
-main.c:2052:6:fonction_calculPossibilites	176	static
-main.c:2110:6:fonctionVictory	64	static
+main.c:1745:6:fonction_init	40	static
+main.c:1801:6:fonction_affichage	56	static
+main.c:1907:6:fonction_select	80	static
+main.c:2050:6:fonction_calculPossibilites	176	static
+main.c:2108:6:fonctionVictory	96	static
 main.c:2178:6:HAL_TIM_PeriodElapsedCallback	16	static
 main.c:2195:6:Error_Handler	4	static,ignoring_inline_asm

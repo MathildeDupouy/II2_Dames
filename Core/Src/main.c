@@ -1755,8 +1755,6 @@ void fonction_init(void const * argument)
 	  if(victory == 1)
 	  {
 	    	osThreadTerminate(task_victoryHandle);
-	    	osThreadDef(affichage, fonction_affichage, osPriorityNormal, 0, 1024);
-	    	affichageHandle = osThreadCreate(osThread(affichage), NULL);
 	    	victory = 0;
 	  }
 	  cpt_lignesw = 0;
@@ -2158,6 +2156,8 @@ void fonctionVictory(void const * argument)
 	  if(TS_State.touchDetected)
 	  {
 		  victory = 1;
+	    	osThreadDef(affichage, fonction_affichage, osPriorityNormal, 0, 1024);
+	    	affichageHandle = osThreadCreate(osThread(affichage), NULL);
 		  osThreadDef(task_init, fonction_init, osPriorityHigh, 0, 1024);
 		  task_initHandle = osThreadCreate(osThread(task_init), NULL);
 	  }

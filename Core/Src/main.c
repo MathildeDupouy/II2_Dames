@@ -223,12 +223,12 @@ uint8_t calculPossibilitesRec(uint16_t line, uint16_t col, uint8_t color, struct
 			}
 		}
 		// Controle colonne de droite : pas de piece et pas en train de manger
-		else if (nb_eaten == 0)
+		/*else if (nb_eaten == 0)
 		{
 			struct cell possible = {line + pas, col - 1};
 			possibilites[index] = possible;
 			index++;
-		}
+		}*/
 	}
 	// Controle de la colonne de gauche en avant :
 	if(col > 0 && line != fin)
@@ -327,7 +327,7 @@ uint8_t calculPossibilitesDame(uint16_t line, uint16_t col, uint8_t color, struc
 			pas_c = pas_c_tab[j];
 			d_l = line + pas_l;
 			d_c = col + pas_c;
-			while (d_l <= fin && d_c >= debut)
+			while (d_l <= fin && d_l >= debut && d_c >= debut && d_c <= fin)
 			{
 				// place pour se mettre
 				if (chessboard[d_l][d_c].isFilled == 0)

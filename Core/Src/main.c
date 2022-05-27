@@ -1946,6 +1946,9 @@ void fonction_select(void const * argument)
 				  col_selected = col;
 				  message[0] = (line << 8) + col;
 				  xQueueSend(queueSelHandle, &message, 0);
+
+
+
 			  }
 			  /// Ce pion etait selectionne
 			  else if (chessboard[line][col].rayon == 12)

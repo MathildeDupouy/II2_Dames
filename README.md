@@ -32,8 +32,10 @@ pour debugger on cree deux programmes :
 
 le code du serveur est le code actuel de la branche et est fonctionnel, il peut etre testé en envoyant des messages à 192.168.0.123 port 7.
 
-le code client lui n'est pas focntionnel, enfin il fonctionne, mais envoie des messages en double, et en desordre. 
+le code client lui n'est pas focntionnel, enfin il fonctionne, mais envoie des messages en double, et en desordre. le code client est trouvable sur la branche ethenet_client. pour le fonctionneemnt il faut utiliser une IP fixe sur votre PC : 192.168.0.2 port 7, les messages viennt de 192.168.0.124 port 7.
 
 un observation des paquets qui apssent sur le switch entre les deux cartes quand on les connecte montre que passé quelques messages les conexions s'arretent et c'est bien une erreur netconn que l'on retourve en debuggant la structure conn qui modelise nos connexions.
+
+à ce stade j'ai passé beaucoup de temps a debugger et chercher et je ne peut pas continuer le projet
 
 Je tiens a preciser que beaucoups de codes on des headers avec des noms de sites internet ou de contributeurs en lignes, mais ceux utilisés ont été modifié lourdement afin de faire les tests. 
